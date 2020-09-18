@@ -11,14 +11,24 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
 ```
 
+```{r libraries, include = FALSE}
+library(tidyverse)
+```
+
 ## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+Here is some test text.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r test}
+health_full = read_csv("https://chronicdata.cdc.gov/api/views/6vp6-wxuq/rows.csv?accessType=DOWNLOAD")
+health_ca = filter(health_full, StateAbbr == "CA")
+pge_q1 = read_csv("PGE_2019_Q1_ElectricUsageByZip.csv")
+write_csv(health_ca, "health_ca.csv")
+saveRDS(health_ca, "health_ca.rds")
+save(health_ca, pge_q1, file = "working_datasets.rda")
+load("working_datasets.rda")
+save.image("progress1.rda")
+load("progress1.rda")
 ```
 
 ## Including Plots
