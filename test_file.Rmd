@@ -1,0 +1,47 @@
+---
+title: "PUBLPOL 218X Assignment 1"
+author: "Tiffany Zhu"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
+```
+
+```{r libraries, include = FALSE}
+library(tidyverse)
+```
+
+## R Markdown
+
+Here is some test text.
+
+```{r test}
+health_full = read_csv("https://chronicdata.cdc.gov/api/views/6vp6-wxuq/rows.csv?accessType=DOWNLOAD")
+health_ca = filter(health_full, StateAbbr == "CA")
+
+pge_q1 = read_csv("PGE_2019_Q1_ElectricUsageByZip.csv")
+
+write_csv(health_ca, "health_ca.csv")
+saveRDS(health_ca, "health_ca.rds")
+save(health_ca, pge_q1, file = "working_datasets.rda")
+load("working_datasets.rda")
+save.image("progress1.rda")
+load("progress1.rda")
+
+year = 2019
+quarters = 1:4
+type = "Electric"
+pge_19_elec = NULL
+for(quarter in quarters) {
+  filename = paste0("PGE_", year, "_Q", quarter, "_", type, "UsageByZip.csv")
+  print(filename)
+  temp = read_csv(filename)
+  pge_19_elec = rbind(pge_19_elec, temp)
+  saveRDS(pge_19_elec, "pge_19_elec.rds")
+}
+
+```
