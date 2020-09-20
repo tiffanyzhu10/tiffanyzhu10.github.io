@@ -2,7 +2,9 @@
 title: "PUBLPOL 218X Assignment 1"
 author: "Tiffany Zhu"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
-output: html_document
+output:
+  html_document:
+    number_sections: true
 ---
 
 ```{r setup, include=FALSE}
@@ -76,10 +78,12 @@ pge_gas = pge_gas %>%
           filter(CUSTOMERCLASS %in% c("Gas- Residential", "Gas- Commercial"))
 
 # Combine datasets
+# Add column for average kBTUs per customer
 # Add column for month and year combined (assume 1st day of month)
 pge_all = NULL
 pge_all = rbind(pge_all, pge_elec)
 pge_all = rbind(pge_all, pge_gas)
+pge_all = mutate(pge_all, AVERAGEKBTU = TOTALKBTU/TOTALCUSTOMERS)
 pge_all$DATE = as.yearmon(paste(pge_all$YEAR, pge_all$MONTH), "%Y %m")
 
 # Drop duplicate entries (there are duplicate entries in September 2017)
@@ -89,8 +93,8 @@ pge_all = pge_all[!duplicated(pge_all[c(1,2,3,4)]),]
 # Show dataset
 pge_all
 ```
-``` {r filter_loc, echo=TRUE, message=F}
-# Getting list of Bay Area ZIP codes
+``` {r filter_loc, echo=TRUE, message=F, warning=F}
+# Getting list of Bay Area zip codes
 ca_counties <- counties("CA", cb = T, progress_bar = F)
 bay_county_names <-
   c(
@@ -120,7 +124,9 @@ pge_bay = pge_all %>%
           filter(ZIPCODE %in% bay_zips$GEOID10)
 ```
 
-# Aggregating electricity and gas consumption
+# Charting electricity and gas consumption
+
+## Aggregating across residential and commercial use
 
 This chart shows monthly total kBTUs of residential and commercial electricity and gas consumption in the Bay Area from Q1 2017 to Q2 2020.
 
@@ -161,7 +167,7 @@ Visual inspection suggests that in 2020, there was a drop in commercial electric
 
 Residential electric usage increased from April to June 2020, in line with what one would expect from increased remote work. Residential gas usage was substantially higher in April 2020 than in April of previous years and slightly higher in June 2020 than previous Junes; this is also consistent with increased remote work.
 
-# Commercial electricity and gas only
+## Commercial electricity and gas only
 
 ```{r comm_graph, echo=TRUE, message=FALSE, warning=FALSE}
 plot_ly() %>% add_trace(data = pge_bay %>%
@@ -185,7 +191,7 @@ plot_ly() %>% add_trace(data = pge_bay %>%
               config(displayModeBar = F)
 ```
 
-# Residential electricity and gas only
+## Residential electricity and gas only
 
 ```{r res_graph, echo=TRUE, message=FALSE, warning=FALSE}
 plot_ly() %>% add_trace(data = pge_bay %>%
@@ -211,13 +217,209 @@ plot_ly() %>% add_trace(data = pge_bay %>%
 
 # Maps of electricity consumption pre- and post-COVID
 
+## Aggregating across residential and commercial uses: Take 1
+
 There are many ways we can measure changes in energy consumption before and after COVID. We can look at:
 * the difference between February and April 2020 use;
 * the difference between February 2020 use and average use in April through June;
-* the difference between April, May, or June use in 2020 and average use in the same month in the previous three years;
+* the difference between April, May, or June use in 2020 and average total use in the same month in the previous three years;
 * the difference between average use in April, May, and June 2020 and average use across all three months across in any previous year,
 among other options.
 
+For this exercise, I will find the difference between April use in 2020 and average use in April of 2017-19 for each zip code and plot this difference for every neighborhood. I drop all zip codes where there was no electricity use recorded in any month.
 
+```{r map, echo=T, message=F, warning=F}
+# Create the new dataset
+# Widen the dataset so that each year has a column for its usage values
+# Because total customers may vary slightly from year to year, the rows don't collapse automatically, so collapse the rows.
+# Create new column representing difference between 2020 and 2017-19 average usage
+# Split steps because otherwise there is an error generating the average usage column
+# Append geometry information
+pge_map = pge_bay %>% filter(MONTH == "4" & 
+                             (CUSTOMERCLASS == "Elec- Commercial" |
+                              CUSTOMERCLASS == "Elec- Residential")) %>%
+                      select(!c(MONTH, COMBINED, DATE, TOTALCUSTOMERS)) %>%
+                      spread(YEAR, TOTALKBTU, fill = 0) %>%
+                      group_by(ZIPCODE) %>%
+                      summarize(`2017` = sum(`2017`, na.rm = T),
+                                `2018` = sum(`2018`, na.rm = T),
+                                `2019` = sum(`2019`, na.rm = T),
+                                `2020` = sum(`2020`, na.rm = T)) %>%
+                      filter(!(`2017` == 0 &
+                             `2018` == 0 &
+                             `2019` == 0 &
+                             `2020` == 0))
+pge_map = pge_map %>% mutate(AVG = rowMeans(pge_map[,c("2017", "2018", "2019")],
+                                            na.rm = T),
+                             DIFF = `2020` - AVG) %>%
+                      left_join(bay_zips %>% select(GEOID10),
+                                by = c("ZIPCODE" = "GEOID10")) %>% 
+                      st_as_sf() %>% 
+                      st_transform(4326)
 
+# Draw map
+res_pal = colorNumeric(palette = "Blues",
+                       domain = pge_map$DIFF)
 
+leaflet() %>% addTiles() %>% 
+              addPolygons(data = pge_map,
+                          fillColor = ~res_pal(DIFF),
+                          color = "white",
+                          opacity = 0.5,
+                          fillOpacity = 0.5,
+                          weight = 1,
+                          label = ~paste0(DIFF, " kBTU change in ", ZIPCODE),
+                          highlightOptions = highlightOptions(weight = 2,
+                                                              opacity = 1)) %>% 
+              addLegend(data = pge_map,
+                        pal = res_pal,
+                        values = ~DIFF,
+                        title = "Difference in Electricity<br>Consumption between<br>April 2017-19 and 2020")
+```
+One issue that quickly becomes clear is that changes in total electricity consumption, as we did for the charts above, neglect to take into account changes in total customers. Visual inspection would suggest that there was a dramatic increase in energy consumption in zip code 94545, but in fact that increase is simply because there were about 7,000 more PG&E Electric customers in that zip code in April 2020 than in all previous Aprils. We need to show changes in use per customer instead.
+
+## Aggregating across residential and commercial uses: Take 2
+
+```{r map_avg, echo=T, message=F, warning=F}
+# Same as above
+pge_map_avg = pge_bay %>% filter(MONTH == "4" & 
+                                 (CUSTOMERCLASS == "Elec- Commercial" |
+                                  CUSTOMERCLASS == "Elec- Residential")) %>%
+                          select(!c(MONTH, COMBINED, DATE, TOTALCUSTOMERS, TOTALKBTU)) %>%
+                          spread(YEAR, AVERAGEKBTU, fill = 0) %>%
+                          group_by(ZIPCODE) %>%
+                          summarize(`2017` = sum(`2017`, na.rm = T),
+                                    `2018` = sum(`2018`, na.rm = T),
+                                    `2019` = sum(`2019`, na.rm = T),
+                                    `2020` = sum(`2020`, na.rm = T)) %>%
+                          filter(!(`2017` == 0 &
+                                 `2018` == 0 &
+                                 `2019` == 0 &
+                                 `2020` == 0))
+  pge_map_avg = pge_map_avg %>% mutate(AVG = rowMeans(pge_map_avg[,c("2017", "2018", "2019")],
+                                             na.rm = T),
+                                       DIFF = `2020` - AVG) %>%
+                                left_join(bay_zips %>% select(GEOID10),
+                                          by = c("ZIPCODE" = "GEOID10")) %>% 
+                                st_as_sf() %>% 
+                                st_transform(4326)
+
+# Draw map
+res_pal = colorNumeric(palette = "Reds",
+                       domain = pge_map_avg$DIFF,
+                       reverse = TRUE)
+
+leaflet() %>% addTiles() %>% 
+              addPolygons(data = pge_map_avg,
+                          fillColor = ~res_pal(DIFF),
+                          color = "white",
+                          opacity = 0.5,
+                          fillOpacity = 0.5,
+                          weight = 1,
+                          label = ~paste0(DIFF, " kBTU change in ", ZIPCODE),
+                          highlightOptions = highlightOptions(weight = 2,
+                                                              opacity = 1)) %>% 
+              addLegend(data = pge_map_avg,
+                        pal = res_pal,
+                        values = ~DIFF,
+                        title = "Difference in Electricity<br>Consumption per Customer<br>between April 2017-19<br>and 2020")
+```
+Sure enough, electricity consumption per customer fell in almost every zip code. Here are some notable drops:
+
+* The largest drop in use per customer is recorded in zip code 94043. A closer inspection of the dataframe shows that PG&E somehow did not register any customers in that area in April and May 2020, but resumed collecting data there in June 2020. Despite the absence of data, I would guess that there was a large decline in electricity use there. 94043 happens to be the home of Google, and I presume Google would have been a primary user of electricity in that zip code. So when it switched to working from home and closed its offices, the entire zip code saw a reduction in electricity use.
+* The Embarcadero and Financial District in San Francisco, zip code 94111, also saw a notable decline in electricity use. This is where a number of tech and finance companies are concentrated, so the shift in working from home would have caused a noticeable reduction in electricity use for offices there.
+* There is a noticeable drop in electricity use in San Mateo, zip code 94403. I dug around on Google Maps and found that there is a large shopping center (Hillsdale Shopping Center) as well as an event center in that zip code. It makes sense that in April 2020, the shopping center would have been closed except for groceries and restaurants, while the event center would be shut down, and together this would cause less electricity to be used in this area.
+* Electricity use in one part of Pleasanton, zip code 94588, fell as well. Google Maps shows that there is also a large shopping center (Stoneridge Mall) in that zip code, and I presume the mall had to shut down in April 2020, so that would explain the drop in electricity use there.
+
+Fun fact: PG&E does not sell electricity in the city of Santa Clara, where I live! The city of Santa Clara runs its own electric utility service, Silicon Valley Power. This is why there is no data for the city of Santa Clara's electric usage.
+
+## Mapping commercial electricity use only
+
+```{r map_comm, echo=T, message=F, warning=F}
+# Repeat data cleaning steps in creation of pge_map
+pge_map_comm = pge_bay %>% filter(MONTH == "4" & 
+                                  CUSTOMERCLASS == "Elec- Commercial") %>%
+                           select(!c(MONTH, COMBINED, DATE, TOTALCUSTOMERS, TOTALKBTU)) %>%
+                           spread(YEAR, AVERAGEKBTU, fill = 0) %>%
+                           filter(!(`2017` == 0 &
+                                    `2018` == 0 &
+                                    `2019` == 0 &
+                                    `2020` == 0))
+pge_map_comm = pge_map_comm %>%
+               mutate(AVG = rowMeans(pge_map_comm[,c("2017", "2018", "2019")],
+                                     na.rm = T),
+                      DIFF = `2020` - AVG) %>%
+               left_join(bay_zips %>% select(GEOID10),
+                         by = c("ZIPCODE" = "GEOID10")) %>% 
+               st_as_sf() %>% 
+               st_transform(4326)
+
+# Draw map
+res_pal = colorNumeric(palette = "Blues",
+                       domain = pge_map_comm$DIFF,
+                       reverse = TRUE)
+
+leaflet() %>% addTiles() %>% 
+              addPolygons(data = pge_map_comm,
+                          fillColor = ~res_pal(DIFF),
+                          color = "white",
+                          opacity = 0.5,
+                          fillOpacity = 0.5,
+                          weight = 1,
+                          label = ~paste0(DIFF, " kBTU change in ", ZIPCODE),
+                          highlightOptions = highlightOptions(weight = 2,
+                                                              opacity = 1)) %>% 
+              addLegend(data = pge_map_comm,
+                        pal = res_pal,
+                        values = ~DIFF,
+                        title = "Difference in Commercial<br>Electricity Consumption<br>per Customer<br>between April 2017-19<br>and 2020")
+```
+Commercial energy consumption fell dramatically in April 2020 compared to the same month in the past three years. The four declines noted above are reflected here.
+
+```{r map_res, echo=T, message=F, warning=F}
+# Repeat setup steps in creation of pge_map
+pge_map_res = pge_bay %>% filter(MONTH == "4" & 
+                                  CUSTOMERCLASS == "Elec- Residential") %>%
+                          select(!c(MONTH, COMBINED, DATE, TOTALCUSTOMERS, TOTALKBTU)) %>%
+                          spread(YEAR, AVERAGEKBTU, fill = 0) %>%
+                          filter(!(`2017` == 0 &
+                                 `2018` == 0 &
+                                 `2019` == 0 &
+                                 `2020` == 0))
+pge_map_res = pge_map_res %>%
+              mutate(AVG = rowMeans(pge_map_res[,c("2017", "2018", "2019")],
+                                    na.rm = T),
+                     DIFF = `2020` - AVG) %>%
+              left_join(bay_zips %>% select(GEOID10),
+                       by = c("ZIPCODE" = "GEOID10")) %>% 
+              st_as_sf() %>% 
+              st_transform(4326)
+
+# Draw map
+res_pal = colorNumeric(palette = "Blues",
+                       domain = pge_map_res$DIFF)
+
+leaflet() %>% addTiles() %>% 
+              addPolygons(data = pge_map_res,
+                          fillColor = ~res_pal(DIFF),
+                          color = "white",
+                          opacity = 0.5,
+                          fillOpacity = 0.5,
+                          weight = 1,
+                          label = ~paste0(DIFF, " kBTU change in ", ZIPCODE),
+                          highlightOptions = highlightOptions(weight = 2,
+                                                              opacity = 1)) %>% 
+              addLegend(data = pge_map_res,
+                        pal = res_pal,
+                        values = ~DIFF,
+                        title = "Difference in Residential<br>Electricity Consumption<br>per Customer<br>between April 2017-19<br>and 2020")
+```
+In keeping with the increase in working from home, residential electricity consumption increased substantially across the Bay Area relative to the same period in previous years. Notable changes:
+
+* The largest increases were in zip codes 94938, 94940, and 95412, all sparsely populated areas in Marin and Sonoma Counties. My guess based on Googling pictures of properties in these zip codes is that wealthy people who owned summer homes there escaped there in April.
+* The largest decrease was recorded in uptown Oakland, zip code 94612, but a closer inspection of the data shows that that is simply due to an unusually large total electricity consumption in April 2019 pushing up the average pre-COVID consumption per customer. In fact, there was an increase in April 2020 relative to April 2017 and 2018.
+
+# Notes about the data
+One important note about the PG&E data is that it does not always collect information from every zip code in every year. This is a major reason why I wound up averaging data in April 2017, 2018, and 2019: trying to compare a single year to another single year can lead to missing or inaccurate estimates of changes in electricity consumption.
+
+Additionally, as briefly alluded to in the data preparation section, the September 2017 data is duplicated in its corresponding CSV. However, the duplicates are not exact (that is, duplicate entries contain slightly varying counts of customers and total electricity use), and there is no explanation for why they are different. This raises the question of why they are different and which one of each pair of duplicates an analyst should keep. I think that in these kinds of situations, to avoid biasing estimates upwards or downwards, we should randomly select which version is included in the final dataset. Although I do not know how to implement this random selection in R, I attempted to write code that was agnostic to which version wound up being included.
