@@ -1,0 +1,205 @@
+---
+title: "PUBLPOL 218X Assignment 1"
+author: "Tiffany Zhu"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/Documents/GitHub/tiffanyzhu10.github.io/assignment1")
+library(tidyverse)
+library(plotly)
+library(sf)
+library(tigris)
+library(leaflet)
+library(zoo)
+```
+
+# Preparing the data
+
+```{r prep_electric, echo=TRUE, message=F}
+# First prep 2017-19 electric data
+years = 2017:2019
+quarters = 1:4
+type = "Electric"
+pge_elec = NULL
+for(year in years) {
+  for(quarter in quarters) {
+    filename = paste0("PGE_", year, "_Q", quarter, "_", type, "UsageByZip.csv")
+    temp = read_csv(filename)
+    pge_elec = rbind(pge_elec, temp)
+    saveRDS(pge_elec, "pge_elec.rds")
+  }
+}
+# Add 2020 data manually
+pge_elec_20_q1 = read_csv("PGE_2020_Q1_ElectricUsageByZip.csv")
+pge_elec_20_q2 = read_csv("PGE_2020_Q2_ElectricUsageByZip.csv")
+pge_elec = rbind(pge_elec, pge_elec_20_q1)
+pge_elec = rbind(pge_elec, pge_elec_20_q2)
+
+# Convert kWhs to kBTUs (1 kWh = 3412.14 BTUs = 3.412 kBTUs)
+# Drop TOTALKWH and AVERAGEKWH
+# Filter for commercial and residential electricity
+pge_elec = pge_elec %>%
+           mutate(TOTALKBTU = TOTALKWH*3.412) %>%
+           select(!c(TOTALKWH, AVERAGEKWH)) %>%
+           filter(CUSTOMERCLASS %in% c("Elec- Residential", "Elec- Commercial"))
+```
+
+```{r prep_gas, echo=TRUE, message=F}
+# Then prep 2017-19 gas data
+years = 2017:2019
+quarters = 1:4
+type = "Gas"
+pge_gas = NULL
+for(year in years) {
+  for(quarter in quarters) {
+    filename = paste0("PGE_", year, "_Q", quarter, "_", type, "UsageByZip.csv")
+    temp = read_csv(filename)
+    pge_gas = rbind(pge_gas, temp)
+    saveRDS(pge_gas, "pge_gas.rds")
+  }
+}
+# Add 2020 data manually
+pge_gas_20_q1 = read_csv("PGE_2020_Q1_GasUsageByZip.csv")
+pge_gas_20_q2 = read_csv("PGE_2020_Q2_GasUsageByZip.csv")
+pge_gas = rbind(pge_gas, pge_gas_20_q1)
+pge_gas = rbind(pge_gas, pge_gas_20_q2)
+
+# Convert therms to kBTUs (1 therm = 100,000 BTUs = 100 kBTUs)
+# Drop TOTALTHM and AVERAGETHM
+# Filter for commercial and residential gas
+pge_gas = pge_gas %>%
+          mutate(TOTALKBTU = TOTALTHM*100) %>%
+          select(!c(TOTALTHM, AVERAGETHM)) %>%
+          filter(CUSTOMERCLASS %in% c("Gas- Residential", "Gas- Commercial"))
+
+# Combine datasets
+# Add column for month and year combined (assume 1st day of month)
+pge_all = NULL
+pge_all = rbind(pge_all, pge_elec)
+pge_all = rbind(pge_all, pge_gas)
+pge_all$DATE = as.yearmon(paste(pge_all$YEAR, pge_all$MONTH), "%Y %m")
+pge_all
+```
+``` {r filter_loc, echo=TRUE, message=F}
+# Getting list of Bay Area ZIP codes
+ca_counties <- counties("CA", cb = T, progress_bar = F)
+bay_county_names <-
+  c(
+    "Alameda",
+    "Contra Costa",
+    "Marin",
+    "Napa",
+    "San Francisco",
+    "San Mateo",
+    "Santa Clara",
+    "Solano",
+    "Sonoma"
+  )
+bay_counties = ca_counties %>% 
+               filter(NAME %in% bay_county_names)
+usa_zips = zctas(cb = TRUE, progress_bar = FALSE)
+bay_zips = usa_zips %>%
+           st_centroid() %>% 
+           .[bay_counties, ] %>% 
+           st_set_geometry(NULL) %>% 
+           left_join(usa_zips %>% select(GEOID10)) %>% 
+           st_as_sf()
+
+# Reducing dataset to Bay Area entities
+pge_bay = pge_all %>%
+          mutate(ZIPCODE = ZIPCODE %>% as.character()) %>%
+          filter(ZIPCODE %in% bay_zips$GEOID10)
+```
+
+# Aggregating electricity and gas consumption
+
+This chart shows monthly total kBTUs of residential and commercial electricity and gas consumption in the Bay Area from Q1 2017 to Q2 2020.
+
+```{r aggregate_graph, echo=TRUE, messages=FALSE, warnings=FALSE}
+plot_ly() %>% add_trace(data = pge_bay %>%
+                        filter(CUSTOMERCLASS == "Elec- Commercial"),
+                        x = ~DATE %>% factor(),
+                        y = ~TOTALKBTU,
+                        type = "bar",
+                        name = "Commercial (Electricity)") %>%
+              add_trace(data = pge_bay %>%
+                        filter(CUSTOMERCLASS == "Gas- Commercial"),
+                        x = ~DATE %>% factor(),
+                        y = ~TOTALKBTU,
+                        type = "bar",
+                        name = "Commercial (Gas)") %>%
+              add_trace(data = pge_bay %>%
+                        filter(CUSTOMERCLASS == "Elec- Residential"),
+                        x = ~DATE %>% factor(),
+                        y = ~TOTALKBTU,
+                        type = "bar",
+                        name = "Residential (Electricity)") %>%
+              add_trace(data = pge_bay %>%
+                        filter(CUSTOMERCLASS == "Gas- Residential"),
+                        x = ~DATE %>% factor(),
+                        y = ~TOTALKBTU,
+                        type = "bar",
+                        name = "Residential (Gas)") %>%
+              layout(xaxis = list(title = "Date",
+                                  fixedrange = T),
+                     yaxis = list(title = "kBTU",
+                                  fixedrange = T),
+                     barmode = "stack",
+                     legend = list(title = list(text = "Energy User"))) %>%
+              config(displayModeBar = F)
+```
+Visual inspection suggests that in 2020, there was a drop in commercial electricity usage in April, but commercial electricity use rebounded to slightly below pre-COVID levels by May. There was also a sharp decline in commercial gas use from March 2020 in April, and this decline continued into June 2020. The decline in commercial gas usage is expected, since many Bay Area workers transitioned to working from home, and offices had less need for using their heating and A/C systems. It is somewhat surprising that electricity use rebounded in May 2020, but my guess is that manufacturing facilities comprise the bulk of commercial electricity usage, and unlike offices, most manufacturing facilities did not close down due to COVID since they were deemed "essential." Anecdotally, my mother works at a medical devices company, and while all office workers have been working from home since February, the factories only closed down briefly and reopened for in-person work as soon as social distancing protocols were established.
+
+Residential electric usage increased from April to June 2020, in line with what one would expect from increased remote work. Residential gas usage was substantially higher in April 2020 than in April of previous years and slightly higher in June 2020 than previous Junes; this is also consistent with increased remote work.
+
+# Commercial electricity and gas only
+
+```{r comm_graph, echo=TRUE, messages=FALSE, warnings=FALSE}
+plot_ly() %>% add_trace(data = pge_bay %>%
+                        filter(CUSTOMERCLASS == "Elec- Commercial"),
+                        x = ~DATE %>% factor(),
+                        y = ~TOTALKBTU,
+                        type = "bar",
+                        name = "Commercial (Electricity)") %>%
+              add_trace(data = pge_bay %>%
+                        filter(CUSTOMERCLASS == "Gas- Commercial"),
+                        x = ~DATE %>% factor(),
+                        y = ~TOTALKBTU,
+                        type = "bar",
+                        name = "Commercial (Gas)") %>%
+              layout(xaxis = list(title = "Date",
+                                  fixedrange = T),
+                     yaxis = list(title = "kBTU",
+                                  fixedrange = T),
+                     barmode = "stack",
+                     legend = list(title = list(text = "Energy Type"))) %>%
+              config(displayModeBar = F)
+```
+
+# Residential electricity and gas only
+
+```{r res_graph, echo=TRUE, messages=FALSE, warnings=FALSE}
+plot_ly() %>% add_trace(data = pge_bay %>%
+                        filter(CUSTOMERCLASS == "Elec- Residential"),
+                        x = ~DATE %>% factor(),
+                        y = ~TOTALKBTU,
+                        type = "bar",
+                        name = "Residential (Electricity)") %>%
+              add_trace(data = pge_bay %>%
+                        filter(CUSTOMERCLASS == "Gas- Residential"),
+                        x = ~DATE %>% factor(),
+                        y = ~TOTALKBTU,
+                        type = "bar",
+                        name = "Residential (Gas)") %>%
+              layout(xaxis = list(title = "Date",
+                                  fixedrange = T),
+                     yaxis = list(title = "kBTU",
+                                  fixedrange = T),
+                     barmode = "stack",
+                     legend = list(title = list(text = "Energy Type"))) %>%
+              config(displayModeBar = F)
+```
+
