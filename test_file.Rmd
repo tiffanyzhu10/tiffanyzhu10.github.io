@@ -1,5 +1,5 @@
 ---
-title: "PUBLPOL 218X Assignment 1"
+title: "Chapter 1 Test File"
 author: "Tiffany Zhu"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output: html_document
@@ -13,13 +13,12 @@ knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
 
 ```{r libraries, include = FALSE}
 library(tidyverse)
+library(plotly)
 ```
 
-## R Markdown
+## Code for Chapters 1.1 to 1.8
 
-Here is some test text.
-
-```{r test}
+```{r data_setup, echo=TRUE}
 health_full = read_csv("https://chronicdata.cdc.gov/api/views/6vp6-wxuq/rows.csv?accessType=DOWNLOAD")
 health_ca = filter(health_full, StateAbbr == "CA")
 
@@ -44,4 +43,110 @@ for(quarter in quarters) {
   saveRDS(pge_19_elec, "pge_19_elec.rds")
 }
 
+pge_filter = filter(pge_19_elec, CUSTOMERCLASS %in% c("Elec- Residential", "Elec- Commercial"))
+pge_select = select(pge_filter, -c(YEAR, COMBINED, AVERAGEKWH))
+pge_group = group_by(pge_select, MONTH, CUSTOMERCLASS)
+pge_summarize = summarize(pge_group, TOTALKWH = sum(TOTALKWH, na.rm = T))
+pge_wide = pivot_wider(pge_summarize, names_from = CUSTOMERCLASS, values_from = TOTALKWH)
+pge_tidy = pivot_longer(pge_wide, c("Elec- Commercial", "Elec- Residential"), names_to = "CUSTOMERCLASS", values_to = "TOTALKWH")
+
+pge_summarize = summarize(pge_group, TOTALKWH = sum(TOTALKWH, na.rm = T), TOTALCUSTOMERS = sum(TOTALCUSTOMERS, na.rm = T))
+pge_mutate = mutate(pge_summarize, AVERAGEKWH = TOTALKWH/TOTALCUSTOMERS)
+
+pge_final = pge_19_elec %>%
+            filter(CUSTOMERCLASS %in%
+                     c("Elec- Commercial", "Elec- Residential")) %>%
+            select(!c(YEAR, COMBINED, AVERAGEKWH)) %>%
+            group_by(MONTH, CUSTOMERCLASS) %>%
+            summarize(TOTALKWH = sum(TOTALKWH, 
+                                     na.rm = T),
+                      TOTALCUSTOMERS = sum(TOTALCUSTOMERS, 
+                                           na.rm = T)) %>%
+            mutate(AVERAGEKWH = TOTALKWH/TOTALCUSTOMERS)
 ```
+
+```{r plots, echo=TRUE}
+pge_chart = pge_final %>%
+            ggplot() +
+            geom_bar(aes(x = MONTH %>% factor(),
+                         y = TOTALKWH,
+                         fill = CUSTOMERCLASS),
+                     stat = "identity",
+                     position = "stack") +
+            labs(x = "Month",
+                 y = "kWh",
+                 title = "PG&E Territory Monthly Electricity Usage, 2019",
+                 fill = "Electricity Type")
+pge_chart
+
+pge_chart %>% ggplotly() %>%
+              layout(xaxis = list(fixedrange = T),
+                     yaxis = list(fixedrange = T)) %>%
+              config(displayModeBar = F)
+pge_chart
+```
+
+## Code for Chapter 1.9
+
+```{r new_setup, include=FALSE}
+library(tidyverse)
+library(sf)
+library(tigris)
+library(leaflet)
+```
+
+```{r geospat, echo=TRUE}
+ca_counties = counties("CA", cb = T, progress_bar = F)
+st_crs(ca_counties)
+projection = "+proj=utm +zone=10 +ellps=GRS80 +datum=NAD83 +units=ft +no_defs"
+ca_counties_transformed = ca_counties %>% 
+                          st_transform(4326) %>% 
+                          st_transform(26910) %>% 
+                          st_transform(projection) %>% 
+                          st_transform(st_crs(ca_counties))
+
+ggplot(ca_counties) + geom_sf()
+leaflet() %>% addTiles() %>%
+              addPolygons(data = ca_counties %>% 
+                                st_transform(4326)) %>%
+              addMarkers(data = ca_counties %>%
+                                st_centroid() %>%
+                                st_transform(4326))
+
+bay_county_names <-
+  c(
+    "Alameda",
+    "Contra Costa",
+    "Marin",
+    "Napa",
+    "San Francisco",
+    "San Mateo",
+    "Santa Clara",
+    "Solano",
+    "Sonoma"
+  )
+bay_counties = ca_counties %>% filter(NAME %in% bay_county_names)
+ggplot(bay_counties) + geom_sf()
+
+ca_cities = places("CA", cb = T, progress_bar = FALSE)
+bay_cities = ca_cities[bay_counties, ]
+bay_cities_within = ca_cities %>%
+                    st_centroid() %>%
+                    .[bay_counties, ] %>%
+                    st_set_geometry(NULL) %>%
+                    left_join(ca_cities %>% select(GEOID)) %>%
+                    st_as_sf()
+leaflet() %>% addTiles() %>%
+              addPolygons(data = bay_counties %>%
+                                 st_transform(4326),
+                          fill = F,
+                          weight = 2) %>%
+              addPolygons(data = bay_cities %>%
+                                 filter(!GEOID %in% bay_cities_within$GEOID) %>%
+                                 st_transform(4326),
+                          color = "red") %>%
+              addPolygons(data = bay_cities_within %>%
+                                 st_transform(4326),
+                          color = "green")
+```
+
