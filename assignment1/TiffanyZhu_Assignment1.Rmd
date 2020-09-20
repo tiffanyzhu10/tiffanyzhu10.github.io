@@ -220,13 +220,17 @@ plot_ly() %>% add_trace(data = pge_bay %>%
 ## Aggregating across residential and commercial uses: Take 1
 
 There are many ways we can measure changes in energy consumption before and after COVID. We can look at:
+
 * the difference between February and April 2020 use;
 * the difference between February 2020 use and average use in April through June;
-* the difference between April, May, or June use in 2020 and average total use in the same month in the previous three years;
+* the difference between April, May, or June use in 2020 and average use in the same month in the previous three years;
 * the difference between average use in April, May, and June 2020 and average use across all three months across in any previous year,
+
 among other options.
 
-For this exercise, I will find the difference between April use in 2020 and average use in April of 2017-19 for each zip code and plot this difference for every neighborhood. I drop all zip codes where there was no electricity use recorded in any month.
+For this exercise, I will find the difference between April use in 2020 and average use in April of 2017-19 for each zip code and plot this difference for every neighborhood. The reason I am not looking at differences within 2020 is that seasonal changes may affect decreases or increases in usage within the year, whereas April through June of multiple years are the same season and we can thus eliminate seasonal variation from consideration.
+
+I drop all zip codes where there was no electricity use recorded in any month.
 
 ```{r map, echo=T, message=F, warning=F}
 # Create the new dataset
