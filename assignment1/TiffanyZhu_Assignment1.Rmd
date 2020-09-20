@@ -81,6 +81,12 @@ pge_all = NULL
 pge_all = rbind(pge_all, pge_elec)
 pge_all = rbind(pge_all, pge_gas)
 pge_all$DATE = as.yearmon(paste(pge_all$YEAR, pge_all$MONTH), "%Y %m")
+
+# Drop duplicate entries (there are duplicate entries in September 2017)
+# Note that there is only one customer of each type in each zip code for each month, so aggregated together, the zip code, month, year, and type serve as a kind of unique ID.
+pge_all = pge_all[!duplicated(pge_all[c(1,2,3,4)]),]
+
+# Show dataset
 pge_all
 ```
 ``` {r filter_loc, echo=TRUE, message=F}
@@ -118,7 +124,7 @@ pge_bay = pge_all %>%
 
 This chart shows monthly total kBTUs of residential and commercial electricity and gas consumption in the Bay Area from Q1 2017 to Q2 2020.
 
-```{r aggregate_graph, echo=TRUE, messages=FALSE, warnings=FALSE}
+```{r aggregate_graph, echo=TRUE, message=FALSE, warning=FALSE}
 plot_ly() %>% add_trace(data = pge_bay %>%
                         filter(CUSTOMERCLASS == "Elec- Commercial"),
                         x = ~DATE %>% factor(),
@@ -157,7 +163,7 @@ Residential electric usage increased from April to June 2020, in line with what 
 
 # Commercial electricity and gas only
 
-```{r comm_graph, echo=TRUE, messages=FALSE, warnings=FALSE}
+```{r comm_graph, echo=TRUE, message=FALSE, warning=FALSE}
 plot_ly() %>% add_trace(data = pge_bay %>%
                         filter(CUSTOMERCLASS == "Elec- Commercial"),
                         x = ~DATE %>% factor(),
@@ -181,7 +187,7 @@ plot_ly() %>% add_trace(data = pge_bay %>%
 
 # Residential electricity and gas only
 
-```{r res_graph, echo=TRUE, messages=FALSE, warnings=FALSE}
+```{r res_graph, echo=TRUE, message=FALSE, warning=FALSE}
 plot_ly() %>% add_trace(data = pge_bay %>%
                         filter(CUSTOMERCLASS == "Elec- Residential"),
                         x = ~DATE %>% factor(),
@@ -202,4 +208,16 @@ plot_ly() %>% add_trace(data = pge_bay %>%
                      legend = list(title = list(text = "Energy Type"))) %>%
               config(displayModeBar = F)
 ```
+
+# Maps of electricity consumption pre- and post-COVID
+
+There are many ways we can measure changes in energy consumption before and after COVID. We can look at:
+* the difference between February and April 2020 use;
+* the difference between February 2020 use and average use in April through June;
+* the difference between April, May, or June use in 2020 and average use in the same month in the previous three years;
+* the difference between average use in April, May, and June 2020 and average use across all three months across in any previous year,
+among other options.
+
+
+
 
