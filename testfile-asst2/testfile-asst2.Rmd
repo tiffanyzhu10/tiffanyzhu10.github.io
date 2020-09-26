@@ -1,0 +1,27 @@
+---
+title: "Test File for Assignment 2"
+author: "Tiffany Zhu"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/Documents/GitHub/tiffanyzhu10.github.io/testfile-asst2")
+library(tidyverse)
+library(plotly)
+library(sf)
+library(tigris)
+library(leaflet)
+library(zoo)
+```
+
+# R Markdown
+
+```{r cars}
+summary(cars)
+```
+
+
