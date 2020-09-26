@@ -15,13 +15,88 @@ library(plotly)
 library(sf)
 library(tigris)
 library(leaflet)
-library(zoo)
+library(censusapi)
+
+Sys.setenv(CENSUS_KEY = "5ace7165d1f551af1a6a8876ee3986faa544ea83")
+
+acs_vars_2018_5yr = listCensusMetadata(name = "2018/acs/acs5",
+                                       type = "variables")
+saveRDS(acs_vars_2018_5yr, "census_vars-test2.rds")
 ```
 
-# R Markdown
+# Section 2.1
 
-```{r cars}
-summary(cars)
+```{r census, echo=TRUE, message=FALSE, warning=FALSE}
+smc_sexbyage = getCensus(name = "acs/acs5",
+                         vintage = 2018,
+                         region = "block group:*",
+                         regionin = "state:06+county:081",
+                         vars = "group(B01001)") %>%
+               mutate(cbg = paste0(state, county, tract, block_group)) %>%
+               select(!c(GEO_ID, state, county,
+                         tract, block_group, NAME) &
+                      !ends_with(c("EA", "MA", "M"))) %>%
+               pivot_longer(ends_with("E"),
+                            names_to = "variable",
+                            values_to = "estimate") %>%
+               left_join(acs_vars_2018_5yr %>% select(name, label),
+                         by = c("variable" = "name")) %>%
+               select(-variable) %>%
+               separate(label,
+                        into = c(NA, NA, "sex", "age"),
+                        sep = "!!") %>%
+               filter(!is.na(age))
+
+smc_elderly = smc_sexbyage %>%
+              mutate(elderly = ifelse(
+                  age %in% c("65 and 66 years",
+                             "67 to 69 years",
+                             "70 to 74 years",
+                             "75 to 79 years",
+                             "80 to 84 years",
+                             "85 years and over"),
+                  estimate,
+                  NA)) %>%
+              group_by(cbg) %>%
+              summarize(elderly = sum(elderly, na.rm = T),
+                        total_pop = sum(estimate, na.rm = T)) %>%
+              mutate(percent_elderly = elderly/total_pop*100) %>%
+              filter(!is.na(percent_elderly))
+
+smc_blockgroups = block_groups("CA",
+                               "San Mateo",
+                               cb = T,
+                               progress_bar = F)
+elderly_pal = colorNumeric(palette = "Blues",
+                           domain = smc_elderly$percent_elderly)
+leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = smc_elderly %>%
+                     left_join(smc_blockgroups %>% select(GEOID),
+                               by = c("cbg" = "GEOID")) %>%
+                     st_as_sf() %>%
+                     st_transform(4326),
+              fillColor = ~elderly_pal (percent_elderly),
+              color = "white",
+              opacity = 0.5,
+              fillOpacity = 0.5,
+              weight = 1,
+              label = ~paste0(round(percent_elderly),
+                              "% over age 65"),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  opacity = 1)) %>%
+  addLegend(data = smc_elderly,
+            pal = elderly_pal,
+            values = ~percent_elderly,
+            title = "% over 65")
+```
+
+# Section 2.2
+
+```{r equity, echo=TRUE, message=FALSE, warning=FALSE}
+
+
+
 ```
 
 
