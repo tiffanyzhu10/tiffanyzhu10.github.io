@@ -313,3 +313,191 @@ smc_flows_19 <- rbind(smc_mobility_current_18,
                             Outflow,
                             Inflow)
 ```
+
+# Section 2.4
+
+``` {r baycounties, echo=TRUE}
+ca_counties = counties("CA", cb = T, progress_bar = F)
+st_crs(ca_counties)
+projection = "+proj=utm +zone=10 +ellps=GRS80 +datum=NAD83 +units=ft +no_defs"
+ca_counties_transformed = ca_counties %>% 
+                          st_transform(4326) %>% 
+                          st_transform(26910) %>% 
+                          st_transform(projection) %>% 
+                          st_transform(st_crs(ca_counties))
+
+ggplot(ca_counties) + geom_sf()
+leaflet() %>% addTiles() %>%
+              addPolygons(data = ca_counties %>% 
+                                st_transform(4326)) %>%
+              addMarkers(data = ca_counties %>%
+                                st_centroid() %>%
+                                st_transform(4326))
+
+bay_county_names <-
+  c(
+    "Alameda",
+    "Contra Costa",
+    "Marin",
+    "Napa",
+    "San Francisco",
+    "San Mateo",
+    "Santa Clara",
+    "Solano",
+    "Sonoma"
+  )
+bay_counties = ca_counties %>% filter(NAME %in% bay_county_names)
+```
+
+``` {r microdata1, echo=TRUE}
+
+library(tidycensus)
+census_api_key("5ace7165d1f551af1a6a8876ee3986faa544ea83")
+
+pums_vars_2018 = pums_variables %>%
+                 filter(year == 2018, survey == "acs5")
+pums_vars_2018_distinct_hh = pums_vars_2018 %>%
+                             distinct(var_code, var_label, data_type, level) %>%
+                             filter(level == "housing")
+ca_pums = get_pums(variables = c("PUMA", "NP", "HHL", "HINCP", "TEN"),
+                   state = "CA",
+                   year = 2018,
+                   survey = "acs5",
+                   recode = T)
+ca_pumas = pumas("CA", cb = T, progress_bar = F)
+bay_pumas = ca_pumas %>%
+            st_centroid() %>%
+            .[bay_counties, ] %>%
+            st_set_geometry(NULL) %>%
+            left_join(ca_pumas %>% select(GEOID10)) %>%
+            st_as_sf()
+bay_pums = ca_pums %>%
+           filter(PUMA %in% bay_pumas$PUMACE10)
+bay_pums_example = bay_pums %>%
+                  filter(!duplicated(SERIALNO)) %>%
+                  mutate(nonenglish_renter_lowinc = ifelse(
+                    (HHL_label != "English only") &
+                    (TEN_label == "Rented") &
+                    (HINCP < 100000),
+                    WGTP,
+                    0)) %>%
+                  group_by(PUMA) %>%
+                  summarize(perc_nonenglish_renter_lowinc = 
+                            sum(nonenglish_renter_lowinc, na.rm = T)/sum(WGTP, na.rm = T)*100) %>%
+                  left_join(bay_pumas %>% select(PUMACE10),
+                                          by = c("PUMA" = "PUMACE10")) %>%
+                  st_as_sf()
+
+pums_pal = colorNumeric(palette = "Oranges",
+                        domain = bay_pums_example$perc_nonenglish_renter_lowinc)
+leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = bay_pums_example,
+              fillColor = ~pums_pal(perc_nonenglish_renter_lowinc),
+              color = "white",
+              opacity = 0.5,
+              fillOpacity = 0.5,
+              weight = 1,
+              label = ~paste0(round(perc_nonenglish_renter_lowinc),
+                              "% non-English-speaking renter households making less than 100K"),
+              highlightOptions = highlightOptions(weight = 2, opacity = 1)) %>%
+  addLegend(data = bay_pums_example,
+            pal = pums_pal,
+            values = ~perc_nonenglish_renter_lowinc,
+            title = "% non-English-speaking<br>renter households<br>making less than 100K")
+
+```
+
+# Section 2.5
+
+``` {r spatialsubs1, echo = TRUE}
+bay_pdas = st_read("https://opendata.arcgis.com/datasets/36dd7a36576f42d4a3d6b0708e3982f4_0.geojson")
+
+smc_blockgroups = block_groups("CA", "San Mateo", cb = T, progress_bar = F) %>%
+                  st_transform(st_crs(bay_pdas))
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolygons(data = bay_pdas,
+              stroke = F,
+              fillOpacity = 0.5) %>%
+  addPolygons(data = smc_blockgroups,
+              color = "red",
+              weight = 0.75,
+              fill = F)
+```
+
+``` {r spatialsubs2, echo=TRUE}
+smc_pdas = bay_pdas %>%
+           filter(county == "San Mateo")
+smc_cbg_pop = getCensus(name = "acs/acs5",
+                        vintage = 2018,
+                        region = "block group:*",
+                        regionin = "state:06+county:081",
+                        vars = "B01001_001E") %>%
+              transmute(cbg = paste0(state, county, tract, block_group),
+                        pop = B01001_001E) %>%
+              left_join(smc_blockgroups %>% select(GEOID),
+                        by = c("cbg" = "GEOID")) %>%
+              st_as_sf()
+smc_pda_pop1 = smc_cbg_pop[smc_pdas, ]
+sum(smc_pda_pop1$pop)
+```
+
+``` {r spatialsubs3, echo=TRUE}
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolygons(data = smc_pdas,
+              stroke = F,
+              fillOpacity = 0.5) %>%
+  addPolygons(data = smc_pda_pop1,
+              color = "red",
+              weight = 0.75,
+              fill = F)
+```
+
+``` {r spatialsubs4, echo=T}
+smc_pda_pop2 = smc_cbg_pop %>%
+               st_centroid() %>%
+               .[smc_pdas, ] %>%
+               st_set_geometry(NULL) %>%
+               left_join(smc_cbg_pop %>% select(cbg)) %>%
+               st_as_sf()
+sum(smc_pda_pop2$pop)
+```
+
+``` {r spatialsubs5, echo=T}
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addPolygons(data = smc_pdas,
+              stroke = F,
+              fillOpacity = 0.5) %>%
+  addPolygons(data = smc_pda_pop2,
+              color = "red",
+              weight = 0.75,
+              fill = F)
+```
+
+``` {r spatialsubs6, echo = T}
+smc_cbg_pop_area <-
+  smc_cbg_pop %>% 
+  st_transform(26910) %>% 
+  mutate(area = st_area(.))
+
+smc_cbg_pop_intersection = smc_cbg_pop_area %>%
+                           st_intersection(smc_pdas %>% st_transform(26910))
+
+leaflet() %>% 
+  addProviderTiles(providers$CartoDB.Positron) %>% 
+  addPolygons(
+    data = smc_pdas,
+    stroke = F,
+    fillOpacity = 0.5
+  ) %>% 
+  addPolygons(
+    data = smc_cbg_pop_intersection %>% 
+      st_transform(4326),
+    color = "red",
+    weight = 0.75,
+    fill = F
+  )
+```
