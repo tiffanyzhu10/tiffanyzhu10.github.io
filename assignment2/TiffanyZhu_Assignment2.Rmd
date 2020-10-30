@@ -1,0 +1,43 @@
+---
+title: "PUBLPOL 218X Assignment 2"
+author: "Tiffany Zhu"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    number_sections: true
+---
+
+
+``` {r setup, include=F}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/Documents/GitHub/tiffanyzhu10.github.io/assignment1")
+library(tidyverse)
+library(plotly)
+library(sf)
+library(tigris)
+library(leaflet)
+library(zoo)
+```
+
+# Educational attainment by race
+
+``` {r race, echo = T}
+
+
+```
+
+# Number and percentage of K-12 students without Internet access
+
+``` {r internet, echo = T}
+
+
+```
+
+# Migration by education
+
+``` {r migration, echo = T}
+
+
+```
+
+
