@@ -17,14 +17,109 @@ library(sf)
 library(tigris)
 library(leaflet)
 library(zoo)
+library(censusapi)
+
+Sys.setenv(CENSUS_KEY="5ace7165d1f551af1a6a8876ee3986faa544ea83")
 ```
 
 # Educational attainment by race
 
-``` {r race, echo = T}
+``` {r race1, warning = F, echo = T}
+acs_vars_2018_5yr <-
+  listCensusMetadata(
+    name = "2018/acs/acs5",
+    type = "variables"
+  )
+acs_vars_2019_1yr <-
+  listCensusMetadata(
+    name = "2019/acs/acs1",
+    type = "variables"
+  )
 
+census_race_labels = c("White Alone",
+                       "Black or African American",
+                       "American Indian and Alaska Native Alone",
+                       "Asian Alone",
+                       "Native Hawaiian and Other Pacific Islander Alone)",
+                       "Some Other Race Alone",
+                       "Two or More Races")
+bay_educ_race = 1:7 %>%
+  map_dfr(function(x) {
+    getCensus(name = "acs/acs1",
+              vintage = 2019,
+              region = "county:085",
+              regionin = "state:06",
+              vars = paste0("group(B15002", LETTERS[x], ")")) %>%
+    select(!c(GEO_ID, state, NAME) &
+           !ends_with(c("EA", "MA", "M"))) %>%
+    pivot_longer(ends_with("E"),
+                 names_to = "variable",
+                 values_to = "estimate") %>%
+    left_join(acs_vars_2019_1yr %>% select(name, label),
+                                    by = c("variable" = "name")) %>%
+    select(-variable) %>%
+    separate(label,
+             into = c(NA, NA, "sex", "education"),
+             sep = "!!") %>%
+    filter(!is.na(education)) %>%
+    mutate(race = census_race_labels[x])
+    })
+bay_educ_race
+```
+``` {r race2, warning = F, echo = T}
+bay_race_total = bay_educ_race %>%
+                 group_by(race) %>%
+                 summarize(estimate = sum(estimate)) %>%
+                 mutate(education = "Total")
+bay_educ_race %>% group_by(education, race) %>%
+                  summarize(estimate = sum(estimate)) %>%
+                  rbind(bay_race_total) %>%
+                  ggplot() +
+                  geom_bar(aes(x = education %>%
+                                   factor(levels = rev(c("Total",
+                                                         bay_educ_race$education[1:8]))),
+                               y = estimate,
+                               fill = race),
+                           stat = "identity",
+                           position = "fill") +
+                  labs(x = "Educational attainment",
+                       y = "Proportion of households",
+                       title = "Santa Clara County educational attainment by race",
+                       subtitle = "Population 25 years or older",
+                       fill = "Race of householder") +
+                  coord_flip() +
+                  theme(legend.position = "bottom",
+                        legend.direction = "vertical")
 
 ```
+
+Key observations:
+
+* "Some Other Race Alone" (unspecified by definition, but I am guessing these are primarily Hispanics/Latinos) is disproportionately represented among lower educational attainment levels (GED/high school diploma or less).
+* Asians are overrepresented among those with bachelor's and graduate/professional degrees.
+* Interestingly enough, white people are overrepresented among those with high school diplomas, GEDs or alternative credentials, and those with some college and no degree.
+
+``` {r race3, echo=T}
+bay_educ_race %>% group_by(education, race) %>%
+                  summarize(estimate = sum(estimate)) %>%
+                  ggplot() +
+                  geom_bar(aes(x = race,
+                               y = estimate,
+                               fill = education %>%
+                                      factor(levels = rev(c(bay_educ_race$education[1:8])))),
+                           stat = "identity",
+                           position = "fill") +
+                  labs(x = "Proportion of households",
+                       y = "Educational attainment",
+                       title = "Santa Clara County race by educational attainment",
+                       subtitle = "Population 25 years or older",
+                       fill = "Educational attainment") +
+                  coord_flip() +
+                  theme(legend.position = "bottom",
+                        legend.direction = "vertical")
+
+```
+
 
 # Number and percentage of K-12 students without Internet access
 
