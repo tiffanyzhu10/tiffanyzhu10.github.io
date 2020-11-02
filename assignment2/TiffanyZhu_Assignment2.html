@@ -555,6 +555,84 @@ sum(sc_internet$no_internet, na.rm = T) /
 </div>
 <div id="migration-by-education" class="section level1">
 <h1><span class="header-section-number">3</span> Migration by education</h1>
+<div id="data-setup-2" class="section level2">
+<h2><span class="header-section-number">3.1</span> Data setup</h2>
+<pre class="r"><code>acs_vars_2019_1yr = listCensusMetadata(name = &quot;2019/acs/acs1&quot;, type = &quot;variables&quot;)
+
+sc_mobility_current_19 = getCensus(name = &quot;acs/acs1&quot;,
+                                   vintage = 2019,
+                                   region = &quot;county:085&quot;,
+                                   regionin = &quot;state:06&quot;,
+                                   vars = c(&quot;group(B07009)&quot;)) %&gt;%
+                          select(!c(GEO_ID, state, NAME) &amp;
+                                 !ends_with(c(&quot;EA&quot;, &quot;MA&quot;, &quot;M&quot;))) %&gt;%
+                          pivot_longer(ends_with(&quot;E&quot;),
+                                       names_to = &quot;variable&quot;,
+                                       values_to = &quot;estimate&quot;) %&gt;%
+                          left_join(acs_vars_2019_1yr %&gt;% select(name, label),
+                                    by = c(&quot;variable&quot; = &quot;name&quot;)) %&gt;%
+                          select(-variable) %&gt;%
+                          separate(label,
+                                   into = c(NA, NA, &quot;mobility&quot;, &quot;education&quot;),
+                                   sep = &quot;!!&quot;) %&gt;%
+                          mutate(mobility = ifelse(mobility %in% c(&quot;Same house 1 year ago:&quot;, &quot;Moved within same country&quot;),
+                                   &quot;Here since last year&quot;,
+                                   &quot;Inflow&quot;)) %&gt;%
+                          filter(!is.na(education)) %&gt;%
+                          group_by(mobility, education) %&gt;%
+                          summarize(estimate = sum(estimate))</code></pre>
+<pre><code>## Warning: Expected 4 pieces. Missing pieces filled with `NA` in 11 rows [1, 2, 3,
+## 4, 5, 6, 7, 13, 19, 25, 31].</code></pre>
+<pre><code>## `summarise()` regrouping output by &#39;mobility&#39; (override with `.groups` argument)</code></pre>
+<pre class="r"><code>smc_mobility_lastyear_19 = getCensus(name = &quot;acs/acs1&quot;,
+                                    vintage = 2019,
+                                    region = &quot;county:085&quot;,
+                                    regionin = &quot;state:06&quot;,
+                                    vars = c(&quot;group(B07409)&quot;)) %&gt;%
+                           select(!c(GEO_ID, state, NAME) &amp;
+                                 !ends_with(c(&quot;EA&quot;, &quot;MA&quot;, &quot;M&quot;))) %&gt;%
+                           pivot_longer(ends_with(&quot;E&quot;),
+                                       names_to = &quot;variable&quot;,
+                                       values_to = &quot;estimate&quot;) %&gt;%
+                           left_join(acs_vars_2019_1yr %&gt;% select(name, label),
+                                    by = c(&quot;variable&quot; = &quot;name&quot;)) %&gt;%
+                           select(-variable) %&gt;%
+                           separate(label,
+                                    into = c(NA, NA, &quot;mobility&quot;, &quot;education&quot;),
+                                    sep = &quot;!!&quot;) %&gt;%
+                           mutate(mobility = ifelse(mobility %in% c(&quot;Same house:&quot;, &quot;Moved within same county:&quot;),
+                                                    &quot;Here since last year&quot;,
+                                                    &quot;Outflow&quot;)) %&gt;%
+                           filter(!is.na(education)) %&gt;%
+                           group_by(mobility, education) %&gt;%
+                           summarize(estimate = sum(estimate))</code></pre>
+<pre><code>## Warning: Expected 4 pieces. Missing pieces filled with `NA` in 10 rows [1, 2, 3,
+## 4, 5, 6, 7, 13, 19, 25].</code></pre>
+<pre><code>## `summarise()` regrouping output by &#39;mobility&#39; (override with `.groups` argument)</code></pre>
+<pre class="r"><code>sc_mobility_current_18 = getCensus(name = &quot;acs/acs1&quot;,
+                                    vintage = 2018,
+                                    region = &quot;county:085&quot;,
+                                    regionin = &quot;state:06&quot;,
+                                    vars = c(&quot;group(B07009)&quot;)) %&gt;%
+                          select(!c(GEO_ID, state, NAME) &amp;
+                                 !ends_with(c(&quot;EA&quot;, &quot;MA&quot;, &quot;M&quot;))) %&gt;%
+                          pivot_longer(ends_with(&quot;E&quot;),
+                                       names_to = &quot;variable&quot;,
+                                       values_to = &quot;estimate&quot;) %&gt;%
+                          left_join(acs_vars_2019_1yr %&gt;% select(name, label),
+                                    by = c(&quot;variable&quot; = &quot;name&quot;)) %&gt;%
+                          select(-variable) %&gt;%
+                          separate(label,
+                                   into = c(NA, NA, &quot;mobility&quot;, &quot;education&quot;),
+                                   sep = &quot;!!&quot;) %&gt;%
+                          mutate(mobility = &quot;Here last year&quot;) %&gt;%
+                          filter(!is.na(education)) %&gt;%
+                          group_by(mobility, education) %&gt;%
+                          summarize(estimate = sum(estimate))</code></pre>
+<pre><code>## Warning: Expected 4 pieces. Missing pieces filled with `NA` in 11 rows [5, 11,
+## 17, 23, 29, 30, 31, 32, 33, 34, 35].</code></pre>
+<pre><code>## `summarise()` regrouping output by &#39;mobility&#39; (override with `.groups` argument)</code></pre>
+</div>
 </div>
 
 
