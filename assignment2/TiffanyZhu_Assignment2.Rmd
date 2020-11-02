@@ -10,7 +10,7 @@ output:
 
 ``` {r setup, include=F}
 knitr::opts_chunk$set(echo = TRUE)
-setwd("~/Documents/GitHub/tiffanyzhu10.github.io/assignment1")
+setwd("~/Documents/GitHub/tiffanyzhu10.github.io/assignment2")
 library(tidyverse)
 library(plotly)
 library(sf)
@@ -145,14 +145,64 @@ These statistics testify to the racial stratification in Santa Clara County jobs
 
 ## Data setup
 
-``` {r internet1, echo = T}
+``` {r eval = F}
+ca_pums = get_pums(variables = c("PUMA", "ACCESS", "SCHG"),
+                   state = "CA",
+                   year = 2019,
+                   survey = "acs1",
+                   recode = T)
+saveRDS(ca_pums, file = "ca_pums.rds")
+```
+
+``` {r internet1, warning = F, message = F, echo = T}
 
 pums_vars_2019 = pums_variables %>%
                  filter(year == 2019, survey == "acs1")
 pums_vars_2019_inds = pums_vars_2019 %>%
                       distinct(var_code, var_label, data_type, level) %>%
                       filter(level == "person")
+ca_pums = readRDS("ca_pums.rds")
+ca_pumas = pumas("CA", cb = T, progress_bar = F)
 
+# Isolate Santa Clara County
+ca_counties = counties("CA", cb = T, progress_bar = F)
+county_name = c("Santa Clara")
+sc_county = ca_counties %>%
+            filter(NAME %in% county_name)
+
+sc_pumas = ca_pumas %>%
+           st_centroid() %>%
+           .[sc_county, ] %>%
+           mutate(PUMACE10 = as.numeric(PUMACE10)) %>%
+           st_set_geometry(NULL) %>%
+           left_join(ca_pumas %>% select(GEOID10)) %>%
+           st_as_sf()
+sc_pums = ca_pums  %>%
+          mutate(PUMA = as.numeric(PUMA)) %>%
+          filter(PUMA %in% sc_pumas$PUMACE10)
+```
+
+``` {r internet2, warning = F, echo=T}
+
+# Number of children
+sc_internet = sc_pums %>%
+              filter(!duplicated(SERIALNO)) %>%
+              mutate(ACCESS = as.numeric(ACCESS),
+                     SCHG = as.numeric(SCHG),
+                     no_internet = ifelse(
+                      (ACCESS == 3) &
+                      (SCHG >= 2 &
+                       SCHG <= 14),
+                      PWGTP,
+                      0)) %>%
+              group_by(PUMA) %>%
+              left_join(sc_pumas %>% select(PUMACE10),
+                                     by = c("PUMA" = "PUMACE10"))
+sum(sc_internet$no_internet, na.rm = T)
+
+# Percentage of children
+sum(sc_internet$no_internet, na.rm = T) / 
+  (sc_internet %>% filter(SCHG >= 2 & SCHG <= 14) %>% pull(PWGTP) %>% sum())
 ```
 
 # Migration by education
