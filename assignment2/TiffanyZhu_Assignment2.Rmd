@@ -207,8 +207,78 @@ sum(sc_internet$no_internet, na.rm = T) /
 
 # Migration by education
 
-``` {r migration, echo = T}
+## Data setup
 
+``` {r migration1, echo = T}
+
+acs_vars_2019_1yr = listCensusMetadata(name = "2019/acs/acs1", type = "variables")
+
+sc_mobility_current_19 = getCensus(name = "acs/acs1",
+                                   vintage = 2019,
+                                   region = "county:085",
+                                   regionin = "state:06",
+                                   vars = c("group(B07009)")) %>%
+                          select(!c(GEO_ID, state, NAME) &
+                                 !ends_with(c("EA", "MA", "M"))) %>%
+                          pivot_longer(ends_with("E"),
+                                       names_to = "variable",
+                                       values_to = "estimate") %>%
+                          left_join(acs_vars_2019_1yr %>% select(name, label),
+                                    by = c("variable" = "name")) %>%
+                          select(-variable) %>%
+                          separate(label,
+                                   into = c(NA, NA, "mobility", "education"),
+                                   sep = "!!") %>%
+                          mutate(mobility = ifelse(mobility %in% c("Same house 1 year ago:", "Moved within same country"),
+                                   "Here since last year",
+                                   "Inflow")) %>%
+                          filter(!is.na(education)) %>%
+                          group_by(mobility, education) %>%
+                          summarize(estimate = sum(estimate))
+
+smc_mobility_lastyear_19 = getCensus(name = "acs/acs1",
+                                    vintage = 2019,
+                                    region = "county:085",
+                                    regionin = "state:06",
+                                    vars = c("group(B07409)")) %>%
+                           select(!c(GEO_ID, state, NAME) &
+                                 !ends_with(c("EA", "MA", "M"))) %>%
+                           pivot_longer(ends_with("E"),
+                                       names_to = "variable",
+                                       values_to = "estimate") %>%
+                           left_join(acs_vars_2019_1yr %>% select(name, label),
+                                    by = c("variable" = "name")) %>%
+                           select(-variable) %>%
+                           separate(label,
+                                    into = c(NA, NA, "mobility", "education"),
+                                    sep = "!!") %>%
+                           mutate(mobility = ifelse(mobility %in% c("Same house:", "Moved within same county:"),
+                                                    "Here since last year",
+                                                    "Outflow")) %>%
+                           filter(!is.na(education)) %>%
+                           group_by(mobility, education) %>%
+                           summarize(estimate = sum(estimate))
+
+sc_mobility_current_18 = getCensus(name = "acs/acs1",
+                                    vintage = 2018,
+                                    region = "county:085",
+                                    regionin = "state:06",
+                                    vars = c("group(B07009)")) %>%
+                          select(!c(GEO_ID, state, NAME) &
+                                 !ends_with(c("EA", "MA", "M"))) %>%
+                          pivot_longer(ends_with("E"),
+                                       names_to = "variable",
+                                       values_to = "estimate") %>%
+                          left_join(acs_vars_2019_1yr %>% select(name, label),
+                                    by = c("variable" = "name")) %>%
+                          select(-variable) %>%
+                          separate(label,
+                                   into = c(NA, NA, "mobility", "education"),
+                                   sep = "!!") %>%
+                          mutate(mobility = "Here last year") %>%
+                          filter(!is.na(education)) %>%
+                          group_by(mobility, education) %>%
+                          summarize(estimate = sum(estimate))
 
 ```
 
