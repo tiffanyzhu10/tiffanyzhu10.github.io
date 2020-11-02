@@ -501,11 +501,56 @@ bay_educ_race %&gt;% group_by(education, race) %&gt;%
 <h1><span class="header-section-number">2</span> Number and percentage of K-12 students without Internet access</h1>
 <div id="data-setup-1" class="section level2">
 <h2><span class="header-section-number">2.1</span> Data setup</h2>
+<pre class="r"><code>ca_pums = get_pums(variables = c(&quot;PUMA&quot;, &quot;ACCESS&quot;, &quot;SCHG&quot;),
+                   state = &quot;CA&quot;,
+                   year = 2019,
+                   survey = &quot;acs1&quot;,
+                   recode = T)
+saveRDS(ca_pums, file = &quot;ca_pums.rds&quot;)</code></pre>
 <pre class="r"><code>pums_vars_2019 = pums_variables %&gt;%
                  filter(year == 2019, survey == &quot;acs1&quot;)
 pums_vars_2019_inds = pums_vars_2019 %&gt;%
                       distinct(var_code, var_label, data_type, level) %&gt;%
-                      filter(level == &quot;person&quot;)</code></pre>
+                      filter(level == &quot;person&quot;)
+ca_pums = readRDS(&quot;ca_pums.rds&quot;)
+ca_pumas = pumas(&quot;CA&quot;, cb = T, progress_bar = F)
+
+# Isolate Santa Clara County
+ca_counties = counties(&quot;CA&quot;, cb = T, progress_bar = F)
+county_name = c(&quot;Santa Clara&quot;)
+sc_county = ca_counties %&gt;%
+            filter(NAME %in% county_name)
+
+sc_pumas = ca_pumas %&gt;%
+           st_centroid() %&gt;%
+           .[sc_county, ] %&gt;%
+           mutate(PUMACE10 = as.numeric(PUMACE10)) %&gt;%
+           st_set_geometry(NULL) %&gt;%
+           left_join(ca_pumas %&gt;% select(GEOID10)) %&gt;%
+           st_as_sf()
+sc_pums = ca_pums  %&gt;%
+          mutate(PUMA = as.numeric(PUMA)) %&gt;%
+          filter(PUMA %in% sc_pumas$PUMACE10)</code></pre>
+<pre class="r"><code># Number of children
+sc_internet = sc_pums %&gt;%
+              filter(!duplicated(SERIALNO)) %&gt;%
+              mutate(ACCESS = as.numeric(ACCESS),
+                     SCHG = as.numeric(SCHG),
+                     no_internet = ifelse(
+                      (ACCESS == 3) &amp;
+                      (SCHG &gt;= 2 &amp;
+                       SCHG &lt;= 14),
+                      PWGTP,
+                      0)) %&gt;%
+              group_by(PUMA) %&gt;%
+              left_join(sc_pumas %&gt;% select(PUMACE10),
+                                     by = c(&quot;PUMA&quot; = &quot;PUMACE10&quot;))
+sum(sc_internet$no_internet, na.rm = T)</code></pre>
+<pre><code>## [1] 0</code></pre>
+<pre class="r"><code># Percentage of children
+sum(sc_internet$no_internet, na.rm = T) / 
+  (sc_internet %&gt;% filter(SCHG &gt;= 2 &amp; SCHG &lt;= 14) %&gt;% pull(PWGTP) %&gt;% sum())</code></pre>
+<pre><code>## [1] 0</code></pre>
 </div>
 </div>
 <div id="migration-by-education" class="section level1">
