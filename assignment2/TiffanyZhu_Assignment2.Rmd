@@ -148,17 +148,17 @@ These statistics testify to the racial stratification in Santa Clara County jobs
 ``` {r eval = F}
 ca_pums = get_pums(variables = c("PUMA", "ACCESS", "SCHG"),
                    state = "CA",
-                   year = 2019,
-                   survey = "acs1",
+                   year = 2018,
+                   survey = "acs5",
                    recode = T)
 saveRDS(ca_pums, file = "ca_pums.rds")
 ```
 
 ``` {r internet1, warning = F, message = F, echo = T}
 
-pums_vars_2019 = pums_variables %>%
-                 filter(year == 2019, survey == "acs1")
-pums_vars_2019_inds = pums_vars_2019 %>%
+pums_vars_2018 = pums_variables %>%
+                 filter(year == 2018, survey == "acs5")
+pums_vars_2018_inds = pums_vars_2018 %>%
                       distinct(var_code, var_label, data_type, level) %>%
                       filter(level == "person")
 ca_pums = readRDS("ca_pums.rds")
@@ -200,10 +200,21 @@ sc_internet = sc_pums %>%
                                      by = c("PUMA" = "PUMACE10"))
 sum(sc_internet$no_internet, na.rm = T)
 
+# Total children being tracked
+sc_internet %>% filter(SCHG >= 2 & SCHG <= 14) %>% pull(PWGTP) %>% sum()
+
 # Percentage of children
 sum(sc_internet$no_internet, na.rm = T) / 
   (sc_internet %>% filter(SCHG >= 2 & SCHG <= 14) %>% pull(PWGTP) %>% sum())
 ```
+
+According to the ACS 2018 5-year results, 1% of K-12 students in Santa Clara County (35 out of 1835) do not have Internet access. There are a few important caveats to note about the data.
+
+First, in the ACS 2018 and 2019 1-year results, when I ran this same code I ended up with 0 students without Internet access, which I highly doubt is the case — it's more likely that I got that result because the 1-year samples only draw from highly populated areas, and in Santa Clara County the people least likely to have internet access will likely live in sparsely populated areas not covered by the 1-year sample. This issue suggests that less populated areas that are less likely to have internet access are also less likely to be sampled, and thus that this percentage is probably an underestimate.
+
+Second, the 2018 5-year data might not be very useful for understanding the state of internet access in 2020. The 2018 5-year data by definition draws on a sample from 2013-18, and internet access has broadened greatly even just between 2018 and 2020, let alone from 2013 to 2020.
+
+## Bay Area map
 
 # Migration by education
 
