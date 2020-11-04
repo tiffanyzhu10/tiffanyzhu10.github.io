@@ -184,7 +184,7 @@ sc_pums = ca_pums  %>%
 
 ``` {r internet2, warning = F, echo=T}
 
-# Number of children
+# Generate number of K-12 students without internet
 sc_internet = sc_pums %>%
               filter(!duplicated(SERIALNO)) %>%
               mutate(ACCESS = as.numeric(ACCESS),
@@ -198,6 +198,7 @@ sc_internet = sc_pums %>%
               group_by(PUMA) %>%
               left_join(sc_pumas %>% select(PUMACE10),
                                      by = c("PUMA" = "PUMACE10"))
+# Print number
 sum(sc_internet$no_internet, na.rm = T)
 
 # Total children being tracked
@@ -208,13 +209,91 @@ sum(sc_internet$no_internet, na.rm = T) /
   (sc_internet %>% filter(SCHG >= 2 & SCHG <= 14) %>% pull(PWGTP) %>% sum())
 ```
 
-According to the ACS 2018 5-year results, 1% of K-12 students in Santa Clara County (35 out of 1835) do not have Internet access. There are a few important caveats to note about the data.
+According to the ACS 2018 5-year results, 1.9% of K-12 students in Santa Clara County (35 out of 1835) do not have Internet access. There are a few important caveats to note about the data.
 
 First, in the ACS 2018 and 2019 1-year results, when I ran this same code I ended up with 0 students without Internet access, which I highly doubt is the case — it's more likely that I got that result because the 1-year samples only draw from highly populated areas, and in Santa Clara County the people least likely to have internet access will likely live in sparsely populated areas not covered by the 1-year sample. This issue suggests that less populated areas that are less likely to have internet access are also less likely to be sampled, and thus that this percentage is probably an underestimate.
 
-Second, the 2018 5-year data might not be very useful for understanding the state of internet access in 2020. The 2018 5-year data by definition draws on a sample from 2013-18, and internet access has broadened greatly even just between 2018 and 2020, let alone from 2013 to 2020.
+A related problem is that the sample of K-12 children is very tiny to begin with. Estimates made from small samples are bound to have a large margin of error: another reason to take this estimate with a grain of salt.
 
-## Bay Area map
+Finally, the 2018 5-year data might not be very useful for understanding the state of internet access in 2020. The 2018 5-year data by definition draws on a sample from 2013-18, and internet access has broadened greatly even just between 2018 and 2020, let alone from 2013 to 2020.
+
+## Mapping internet access across the Bay Area
+
+### Data setup
+
+``` {r internet3, warning = F, message = F, echo = T}
+
+# Broaden PUMS data to all Bay Area
+bay_county_names <-
+  c(
+    "Alameda",
+    "Contra Costa",
+    "Marin",
+    "Napa",
+    "San Francisco",
+    "San Mateo",
+    "Santa Clara",
+    "Solano",
+    "Sonoma"
+  )
+bay_counties = ca_counties %>%
+               filter(NAME %in% bay_county_names)
+bay_pumas = ca_pumas %>%
+            st_centroid() %>%
+            .[bay_counties, ] %>%
+            mutate(PUMACE10 = as.numeric(PUMACE10)) %>%
+            st_set_geometry(NULL) %>%
+            left_join(ca_pumas %>% select(GEOID10)) %>%
+            st_as_sf()
+bay_pums = ca_pums  %>%
+           mutate(PUMA = as.numeric(PUMA)) %>%
+           filter(PUMA %in% bay_pumas$PUMACE10)
+
+# Generate number of K-12 students without internet
+bay_internet = bay_pums %>%
+               filter(!duplicated(SERIALNO)) %>%
+               mutate(ACCESS = as.numeric(ACCESS),
+                      SCHG = as.numeric(SCHG),
+                      no_internet = ifelse(
+                       (ACCESS == 3) &
+                       (SCHG >= 2 &
+                        SCHG <= 14),
+                       PWGTP,
+                       0)) %>%
+               filter(SCHG >= 2 & SCHG <= 14) %>%
+               group_by(PUMA) %>%
+               summarize(perc_nointernet = sum(no_internet, na.rm = T)/
+                                           (sum(PWGTP, na.rm = T))) %>%
+               left_join(bay_pumas %>% select(PUMACE10),
+                                       by = c("PUMA" = "PUMACE10")) %>%
+               st_as_sf()
+
+```
+
+### Map
+
+``` {r internet4, warning = F, message = F, echo = T}
+
+pums_pal = colorNumeric(palette = "Oranges",
+                        domain = bay_internet$perc_nointernet)
+
+leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = bay_internet,
+              fillColor = ~pums_pal(perc_nointernet),
+              color = "white",
+              opacity = 0.5,
+              fillOpacity = 0.5,
+              weight = 1,
+              label = ~paste0(perc_nointernet,
+                              "% K-12 students without Internet access"),
+              highlightOptions = highlightOptions(weight = 2, opacity = 1)) %>%
+  addLegend(data = bay_internet,
+            pal = pums_pal,
+            values = ~perc_nointernet,
+            title = "% K-12 students<br>without Internet access")
+
+```
 
 # Migration by education
 
