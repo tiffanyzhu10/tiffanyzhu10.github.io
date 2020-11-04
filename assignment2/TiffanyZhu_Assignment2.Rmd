@@ -148,17 +148,17 @@ These statistics testify to the racial stratification in Santa Clara County jobs
 ``` {r eval = F}
 ca_pums = get_pums(variables = c("PUMA", "ACCESS", "SCHG"),
                    state = "CA",
-                   year = 2018,
-                   survey = "acs5",
+                   year = 2019,
+                   survey = "acs1",
                    recode = T)
 saveRDS(ca_pums, file = "ca_pums.rds")
 ```
 
 ``` {r internet1, warning = F, message = F, echo = T}
 
-pums_vars_2018 = pums_variables %>%
-                 filter(year == 2018, survey == "acs5")
-pums_vars_2018_inds = pums_vars_2018 %>%
+pums_vars_2019 = pums_variables %>%
+                 filter(year == 2019, survey == "acs1")
+pums_vars_2019_inds = pums_vars_2019 %>%
                       distinct(var_code, var_label, data_type, level) %>%
                       filter(level == "person")
 ca_pums = readRDS("ca_pums.rds")
@@ -186,13 +186,15 @@ sc_pums = ca_pums  %>%
 
 # Generate number of K-12 students without internet
 sc_internet = sc_pums %>%
-              filter(!duplicated(SERIALNO)) %>%
+              filter(ACCESS != "b" &
+                     SCHG != "bb") %>%
               mutate(ACCESS = as.numeric(ACCESS),
-                     SCHG = as.numeric(SCHG),
-                     no_internet = ifelse(
-                      (ACCESS == 3) &
-                      (SCHG >= 2 &
-                       SCHG <= 14),
+                     SCHG = as.numeric(SCHG)) %>%
+              filter(!duplicated(SERIALNO) &
+                     (SCHG >= 2 &
+                      SCHG <= 14)) %>%
+              mutate(no_internet = ifelse(
+                      (ACCESS == 3),
                       PWGTP,
                       0)) %>%
               group_by(PUMA) %>%
@@ -202,11 +204,11 @@ sc_internet = sc_pums %>%
 sum(sc_internet$no_internet, na.rm = T)
 
 # Total children being tracked
-sc_internet %>% filter(SCHG >= 2 & SCHG <= 14) %>% pull(PWGTP) %>% sum()
+sum(sc_internet$PWGTP, na.rm = T)
 
 # Percentage of children
 sum(sc_internet$no_internet, na.rm = T) / 
-  (sc_internet %>% filter(SCHG >= 2 & SCHG <= 14) %>% pull(PWGTP) %>% sum())
+  (sum(sc_internet$PWGTP, na.rm = T))
 ```
 
 According to the ACS 2018 5-year results, 1.9% of K-12 students in Santa Clara County (35 out of 1835) do not have Internet access. There are a few important caveats to note about the data.
@@ -245,25 +247,26 @@ bay_pumas = ca_pumas %>%
             st_set_geometry(NULL) %>%
             left_join(ca_pumas %>% select(GEOID10)) %>%
             st_as_sf()
-bay_pums = ca_pums  %>%
+bay_pums = ca_pums %>%
            mutate(PUMA = as.numeric(PUMA)) %>%
            filter(PUMA %in% bay_pumas$PUMACE10)
 
 # Generate number of K-12 students without internet
 bay_internet = bay_pums %>%
-               filter(!duplicated(SERIALNO)) %>%
+               filter(ACCESS != "b" &
+                      SCHG != "bb") %>%
                mutate(ACCESS = as.numeric(ACCESS),
-                      SCHG = as.numeric(SCHG),
-                      no_internet = ifelse(
-                       (ACCESS == 3) &
-                       (SCHG >= 2 &
-                        SCHG <= 14),
+                      SCHG = as.numeric(SCHG)) %>%
+               filter(!duplicated(SERIALNO) &
+                      (SCHG >= 2 &
+                      SCHG <= 14)) %>%
+               mutate(no_internet = ifelse(
+                       (ACCESS == 3),
                        PWGTP,
                        0)) %>%
-               filter(SCHG >= 2 & SCHG <= 14) %>%
                group_by(PUMA) %>%
-               summarize(perc_nointernet = sum(no_internet, na.rm = T)/
-                                           (sum(PWGTP, na.rm = T))) %>%
+               mutate(perc_nointernet = sum(no_internet, na.rm = T)/
+                                           (sum(PWGTP, na.rm = T))*100) %>%
                left_join(bay_pumas %>% select(PUMACE10),
                                        by = c("PUMA" = "PUMACE10")) %>%
                st_as_sf()
@@ -272,7 +275,7 @@ bay_internet = bay_pums %>%
 
 ### Map
 
-``` {r internet4, warning = F, message = F, echo = T}
+``` {r internet4, echo = T}
 
 pums_pal = colorNumeric(palette = "Oranges",
                         domain = bay_internet$perc_nointernet)
@@ -285,7 +288,7 @@ leaflet() %>%
               opacity = 0.5,
               fillOpacity = 0.5,
               weight = 1,
-              label = ~paste0(perc_nointernet,
+              label = ~paste0(round(perc_nointernet),
                               "% K-12 students without Internet access"),
               highlightOptions = highlightOptions(weight = 2, opacity = 1)) %>%
   addLegend(data = bay_internet,
@@ -372,4 +375,12 @@ sc_mobility_current_18 = getCensus(name = "acs/acs1",
 
 ```
 
+
+## Map
+
+``` {r migration2, echo = T}
+
+
+
+```
 
