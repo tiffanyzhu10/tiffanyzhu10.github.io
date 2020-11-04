@@ -11,7 +11,7 @@
 
 <meta name="author" content="Tiffany Zhu" />
 
-<meta name="date" content="2020-11-01" />
+<meta name="date" content="2020-11-03" />
 
 <title>PUBLPOL 218X Assignment 2</title>
 
@@ -365,7 +365,7 @@ summary {
 
 <h1 class="title toc-ignore">PUBLPOL 218X Assignment 2</h1>
 <h4 class="author">Tiffany Zhu</h4>
-<h4 class="date">November 01, 2020</h4>
+<h4 class="date">November 03, 2020</h4>
 
 </div>
 
@@ -503,13 +503,13 @@ bay_educ_race %&gt;% group_by(education, race) %&gt;%
 <h2><span class="header-section-number">2.1</span> Data setup</h2>
 <pre class="r"><code>ca_pums = get_pums(variables = c(&quot;PUMA&quot;, &quot;ACCESS&quot;, &quot;SCHG&quot;),
                    state = &quot;CA&quot;,
-                   year = 2019,
-                   survey = &quot;acs1&quot;,
+                   year = 2018,
+                   survey = &quot;acs5&quot;,
                    recode = T)
 saveRDS(ca_pums, file = &quot;ca_pums.rds&quot;)</code></pre>
-<pre class="r"><code>pums_vars_2019 = pums_variables %&gt;%
-                 filter(year == 2019, survey == &quot;acs1&quot;)
-pums_vars_2019_inds = pums_vars_2019 %&gt;%
+<pre class="r"><code>pums_vars_2018 = pums_variables %&gt;%
+                 filter(year == 2018, survey == &quot;acs5&quot;)
+pums_vars_2018_inds = pums_vars_2018 %&gt;%
                       distinct(var_code, var_label, data_type, level) %&gt;%
                       filter(level == &quot;person&quot;)
 ca_pums = readRDS(&quot;ca_pums.rds&quot;)
@@ -546,11 +546,20 @@ sc_internet = sc_pums %&gt;%
               left_join(sc_pumas %&gt;% select(PUMACE10),
                                      by = c(&quot;PUMA&quot; = &quot;PUMACE10&quot;))
 sum(sc_internet$no_internet, na.rm = T)</code></pre>
-<pre><code>## [1] 0</code></pre>
+<pre><code>## [1] 35</code></pre>
+<pre class="r"><code># Total children being tracked
+sc_internet %&gt;% filter(SCHG &gt;= 2 &amp; SCHG &lt;= 14) %&gt;% pull(PWGTP) %&gt;% sum()</code></pre>
+<pre><code>## [1] 1835</code></pre>
 <pre class="r"><code># Percentage of children
 sum(sc_internet$no_internet, na.rm = T) / 
   (sc_internet %&gt;% filter(SCHG &gt;= 2 &amp; SCHG &lt;= 14) %&gt;% pull(PWGTP) %&gt;% sum())</code></pre>
-<pre><code>## [1] 0</code></pre>
+<pre><code>## [1] 0.01907357</code></pre>
+<p>According to the ACS 2018 5-year results, 1% of K-12 students in Santa Clara County (35 out of 1835) do not have Internet access. There are a few important caveats to note about the data.</p>
+<p>First, in the ACS 2018 and 2019 1-year results, when I ran this same code I ended up with 0 students without Internet access, which I highly doubt is the case — it’s more likely that I got that result because the 1-year samples only draw from highly populated areas, and in Santa Clara County the people least likely to have internet access will likely live in sparsely populated areas not covered by the 1-year sample. This issue suggests that less populated areas that are less likely to have internet access are also less likely to be sampled, and thus that this percentage is probably an underestimate.</p>
+<p>Second, the 2018 5-year data might not be very useful for understanding the state of internet access in 2020. The 2018 5-year data by definition draws on a sample from 2013-18, and internet access has broadened greatly even just between 2018 and 2020, let alone from 2013 to 2020.</p>
+</div>
+<div id="bay-area-map" class="section level2">
+<h2><span class="header-section-number">2.2</span> Bay Area map</h2>
 </div>
 </div>
 <div id="migration-by-education" class="section level1">
