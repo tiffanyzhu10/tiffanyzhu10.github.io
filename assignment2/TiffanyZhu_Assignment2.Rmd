@@ -329,7 +329,7 @@ sc_mobility_current_19 = getCensus(name = "acs/acs1",
                           group_by(mobility, education) %>%
                           summarize(estimate = sum(estimate))
 
-smc_mobility_lastyear_19 = getCensus(name = "acs/acs1",
+sc_mobility_lastyear_19 = getCensus(name = "acs/acs1",
                                     vintage = 2019,
                                     region = "county:085",
                                     regionin = "state:06",
@@ -373,6 +373,27 @@ sc_mobility_current_18 = getCensus(name = "acs/acs1",
                           group_by(mobility, education) %>%
                           summarize(estimate = sum(estimate))
 
+sc_flows_19 = rbind(sc_mobility_current_18,
+                     sc_mobility_lastyear_19 %>%
+                       filter(mobility == "Outflow"),
+                     sc_mobility_current_19 %>%
+                       filter(mobility == "Inflow"),
+                     sc_mobility_current_19 %>%
+                       group_by(education) %>%
+                       summarize(estimate = sum(estimate)) %>%
+                       mutate(mobility = "Here this year")) %>%
+                     pivot_wider(names_from = mobility,
+                                 values_from = estimate) %>%
+                     mutate(`External net` = Inflow - Outflow,
+                            `Internal net` = `Here this year` - `Here last year` - `External net`,) %>%
+                     select(`Eeducation level` = education,
+                            `Internal net`,
+                            `External net`,
+                            `Here last year`,
+                            `Here this year`,
+                            Outflow,
+                            Inflow)
+sc_flows_19
 ```
 
 
