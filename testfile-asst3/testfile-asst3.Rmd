@@ -1,0 +1,324 @@
+---
+title: "Test File for Assignment 33"
+author: "Tiffany Zhu"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+```
+
+# 3.1 Distributions
+
+``` {r, echo = T}
+
+sample = runif(1000)
+hist(sample)
+
+```
+``` {r, echo = T}
+start = proc.time()
+sample = runif(10000000)
+time = proc.time() - start
+time
+hist(sample)
+```
+
+``` {r, echo = T}
+
+round = sample(c(-0.5, 0.5),
+               size = 100,
+               replace = T,
+               prob = c(0.5, 0.5))
+round
+
+```
+
+``` {r, echo = T}
+
+sample = 1000000
+rounds = 20
+galton = rounds %>%
+         rerun(sample(c(-0.5, 0.5),
+                      size = sample,
+                      replace = T,
+                      prob = c(0.5, 0.5))) %>%
+         reduce(rbind) %>%
+         colSums()
+hist(galton)
+
+```
+
+``` {r, echo = T}
+
+normal_test = rnorm(sample, sd = sqrt(5))
+
+ggplot() + geom_histogram(aes(galton),
+                          binwidth = 1) +
+           geom_density(aes(normal_test,
+                            after_stat(count)))
+
+```
+
+# 3.2 Monte Carlo simulations
+
+``` {r, echo = T}
+
+acs_vars_2018_5yr = listCensusMetadata(name = "2018/acs/acs5",
+                                       type = "variables")
+```
+
+```{r, echo = T}
+income_19_summary = getCensus(name = "acs/acs1",
+                              vintage = 2019,
+                              region = "county:001,013,041,055,075,081,085,095,097",
+                              regionin = "state:06",
+                              vars = c("group(B19001)")) %>%
+                    select(!c(GEO_ID, state, NAME) &
+                           !ends_with(c("EA", "MA", "M"))) %>%
+                    pivot_longer(ends_with("E"),
+                                 names_to = "variable",
+                                 values_to = "estimate") %>%
+                    group_by(variable) %>%
+                    summarize(estimate = sum(estimate)) %>%
+                    left_join(acs_vars_2018_5yr %>% select(name, label),
+                              by = c("variable" = "name")) %>%
+                    select(-variable)
+
+income_tiers = data.frame(lower_end = c(NA,
+                                        0,
+                                        10000,
+                                        15000,
+                                        20000,
+                                        25000,
+                                        30000,
+                                        35000,
+                                        40000,
+                                        45000,
+                                        50000,
+                                        60000,
+                                        75000,
+                                        100000,
+                                        125000,
+                                        150000,
+                                        200000),
+                          width = c(NA,
+                                    10000,
+                                    rep(5000, 8),
+                                    10000,
+                                    15000,
+                                    rep(25000, 3),
+                                    50000,
+                                    NA))
+income_tiers
+
+```
+
+``` {r, echo = T}
+
+total = income_19_summary$estimate[1]
+row = 2
+cumulative = income_19_summary$estimate[row]
+proportion = cumulative / total
+while (proportion < 0.5) {
+  cumulative_lag = cumulative
+  row = row + 1
+  cumulative = cumulative + income_19_summary$estimate[row]
+  proportion = cumulative / total
+}
+median = income_tiers$lower_end[row] +
+         (total / 2 - cumulative_lag) / income_19_summary$estimate[row] *
+         income_tiers$width[row]
+prettyNum(round(median), ",")
+
+```
+
+``` {r, echo = T}
+
+income_19_summary_moe = getCensus(name = "acs/acs1",
+                                  vintage = 2019,
+                                  region = "county:001,013,041,055,075,081,085,095,097",
+                                  regionin = "state:06",
+                                  vars = c("group(B19001)")) %>%
+                        select(!c(GEO_ID, state, NAME) &
+                               !ends_with(c("EA", "MA", "E"))) %>%
+                        pivot_longer(ends_with(c("M")),
+                                     names_to = "variable",
+                                     values_to = "estimate") %>%
+                        group_by(variable) %>%
+                        summarize(estimate = sqrt(sum(estimate^2)))
+income_19_summary_moe
+```
+
+``` {r, echo = T}
+
+income_19_summary_montecarlo = map2(income_19_summary$estimate,
+                                    income_19_summary_moe$estimate/1.645,
+                                    function(x,y) rnorm(10000, x, y))
+income_19_summary_montecarlo = income_19_summary_montecarlo %>% transpose()
+
+montecarlo_result = income_19_summary_montecarlo %>%
+                    map(function(income) {
+                      income = income %>% unlist()
+                      total = income[1]
+                      row = 2
+                      cumulative = income[row]
+                      proportion = cumulative / total
+                      
+                      while (proportion < 0.5) {
+                        cumulative_lag = cumulative
+                        row = row + 1
+                        cumulative = cumulative + income[row]
+                        proportion = cumulative / total
+                      }
+                      
+                      median = income_tiers$lower_end[row] +
+                               (total/2 - cumulative_lag) /
+                               income[row] *
+                               income_tiers$width[row]
+                      
+                    }) %>%
+                    unlist()
+
+hist(montecarlo_result)
+```
+``` {r, echo = T}
+
+mean(montecarlo_result)
+sd(montecarlo_result)*1.645
+
+```
+
+``` {r, echo = T}
+
+upper = mean(montecarlo_result) + 1.645*sd(montecarlo_result)
+lower = mean(montecarlo_result) - 1.645*sd(montecarlo_result)
+
+ggplot() + geom_histogram(aes(montecarlo_result)) +
+           geom_vline(aes(xintercept = mean(montecarlo_result)),
+                      colour = "red") +
+           geom_vline(aes(xintercept = lower),
+                      colour = "red") +
+           geom_vline(aes(xintercept = upper),
+                      colour = "red") +
+           labs(x = "Median Household Income ($)",
+                y = "# of Simulations",
+                title = "Monte Carlo simulation, Bay Area households")
+
+```
+
+# 3.3 Simple linear regression
+
+``` {r, echo = T}
+
+bay_income_race_tract = getCensus(name = "acs/acs5",
+                                  vintage = 2018,
+                                  region = "tract:*",
+                                  regionin = "state:06+county:001,013,041,055,075,081,085,095,097",
+                                  vars = c("B19001A_001E",
+                                           "B19001_001E",
+                                           "B19001_014E",
+                                           "B19001_015E",
+                                           "B19001_016E",
+                                           "B19001_017E")) %>%
+                        transmute(tract = paste0(state, county, tract),
+                                  perc_white = B19001A_001E / B19001_001E,
+                                  perc_over100k = (B19001_014E +
+                                                   B19001_015E +
+                                                   B19001_016E +
+                                                   B19001_017E) /
+                                                   B19001_001E) %>%
+                        filter(!is.na(perc_white),
+                               !is.na(perc_over100k))
+
+ggplot() + geom_point(data = bay_income_race_tract,
+                      aes(x = perc_white,
+                          y = perc_over100k))
+
+ggplot(data = bay_income_race_tract,
+       aes(x = perc_white,
+           y = perc_over100k)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+``` {r, echo = T}
+
+slope = 0
+yintercept = mean(bay_income_race_tract$perc_over100k)
+
+best_fit_candidate = slope * bay_income_race_tract$perc_white + yintercept
+
+residuals = bay_income_race_tract$perc_over100k - best_fit_candidate
+
+sumsq_residuals = sum(residuals^2)
+
+sumsq_residuals
+
+ggplot(data = bay_income_race_tract,
+       aes(x = perc_white,
+           y = perc_over100k)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  geom_line(aes(x = bay_income_race_tract$perc_white,
+                y = best_fit_candidate),
+            color = "red",
+            size = 1)
+
+```
+
+``` {r, echo = T}
+
+get_sumsq_residuals = function(x) {
+  slope = x[1]
+  yintercept = x[2]
+  best_fit_candidate = slope * bay_income_race_tract$perc_white + yintercept
+  residuals = bay_income_race_tract$perc_over100k - best_fit_candidate
+  sumsq_residuals = sum(residuals^2)
+}
+
+optimization = optim(c(0,0), get_sumsq_residuals)
+optimization
+
+ggplot(data = bay_income_race_tract,
+       aes(x = perc_white,
+           y = perc_over100k)) +
+  geom_point() +
+  geom_line(aes(x = perc_white,
+                y = perc_white * optimization$par[1] + optimization$par[2]),
+            color = "blue",
+            size = 1)
+
+```
+
+``` {r, echo = T}
+
+slope = optimization$par[1]
+yintercept = optimization$par[2]
+best_fit_candidate = slope * bay_income_race_tract$perc_white + yintercept
+residuals = bay_income_race_tract$perc_over100k - best_fit_candidate
+mean(residuals)
+
+plot(density(residuals))
+```
+
+``` {r, echo = T}
+
+model = lm(perc_over100k ~ perc_white, bay_income_race_tract)
+summary(model)
+
+predict(model, data.frame(perc_white = 0.5))
+
+```
+
+
+
+
+
+
