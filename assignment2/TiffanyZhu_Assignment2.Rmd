@@ -5,6 +5,7 @@ date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output:
   html_document:
     number_sections: true
+    df_print: paged
 ---
 
 
@@ -302,9 +303,14 @@ leaflet() %>%
 
 ## Data setup
 
-``` {r migration1, echo = T}
+``` {r, eval = F}
 
-acs_vars_2019_1yr = listCensusMetadata(name = "2019/acs/acs1", type = "variables")
+acs_vars_2019_1yr = listCensusMetadata(name = "2019/acs/acs1",
+                                       type = "variables")
+
+```
+
+``` {r migration1, warning = F, message = F, echo = T}
 
 sc_mobility_current_19 = getCensus(name = "acs/acs1",
                                    vintage = 2019,
@@ -322,7 +328,7 @@ sc_mobility_current_19 = getCensus(name = "acs/acs1",
                           separate(label,
                                    into = c(NA, NA, "mobility", "education"),
                                    sep = "!!") %>%
-                          mutate(mobility = ifelse(mobility %in% c("Same house 1 year ago:", "Moved within same country"),
+                          mutate(mobility = ifelse(mobility %in% c("Same house 1 year ago:", "Moved within same county:"),
                                    "Here since last year",
                                    "Inflow")) %>%
                           filter(!is.na(education)) %>%
@@ -386,22 +392,26 @@ sc_flows_19 = rbind(sc_mobility_current_18,
                                  values_from = estimate) %>%
                      mutate(`External net` = Inflow - Outflow,
                             `Internal net` = `Here this year` - `Here last year` - `External net`,) %>%
-                     select(`Eeducation level` = education,
+                     select(`Education level` = education,
                             `Internal net`,
                             `External net`,
                             `Here last year`,
                             `Here this year`,
                             Outflow,
                             Inflow)
-sc_flows_19
 ```
 
-
-## Map
+## Table
 
 ``` {r migration2, echo = T}
 
-
+sc_flows_19
 
 ```
+
+"Internal net" refers to changes in this category *not* due to migration into and out of the county; "external net" refers to changes that *are* due to migration into and out of the county.
+
+Looking at the "Internal Net" column, it appears that the number of less-educated people grew for reasons not related to immigration or emigration from the county, while numbers of more-educated people fell. This is a bizarre finding since it is not generally possible for people to lose education, but one possible explanation is a large number of survey respondents were high school and college students being counted for the first time (the ACS counts people from age 15 upwards).
+
+Looking at the "External Net" column, it seems that people of most educational levels are emigrating from the county except for the extremely well educated (those with a graduate/professional degree) and the least educated (high school graduates). This pattern squares more with conventional logic about Bay Area migration patterns and suggests that the Bay Area economy tend to draw both highly-educated workers (who work as researchers, tech workers, or other highly-skilled occupations), and less-educated workers (who work in service-oriented occupations).
 
