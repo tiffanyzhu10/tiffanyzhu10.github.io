@@ -317,8 +317,70 @@ predict(model, data.frame(perc_white = 0.5))
 
 ```
 
+``` {r, echo = T}
+ca_pumas = pumas("CA", cb = T, progress_bar = F)
+```
+
+``` {r, echo = T}
+
+# Some setup first
+pums_vars_2018 =
+  pums_variables %>%
+  filter(year == 2018, survey == "acs5")
+
+ca_pums = get_pums(variables = c("PUMA",
+                                 "NP",
+                                 "RAC1P",
+                                 "HINCP"),
+                   state = "CA",
+                   year = 2018,
+                   survey = "acs5",
+                   recode = T)
+bay_county_names =
+  c(
+    "Alameda",
+    "Contra Costa",
+    "Marin",
+    "Napa",
+    "San Francisco",
+    "San Mateo",
+    "Santa Clara",
+    "Solano",
+    "Sonoma"
+  )
+bay_counties = counties("CA", cb = T, progress_bar = F) %>%
+               filter(NAME %in% bay_county_names)
+bay_pumas = ca_pumas %>%
+            st_centroid() %>%
+            .[bay_counties, ] %>%
+            st_set_geometry(NULL) %>%
+            left_join(ca_pumas %>% select(GEOID10)) %>%
+            st_as_sf()
+bay_pums = ca_pums %>% filter(PUMA %in% bay_pumas$PUMACE10)
+bay_pums_regression = bay_pums %>%
+                      filter(SPORDER == 1) %>%
+                      mutate(white = ifelse(RAC1P_label == "White alone",
+                                            1,
+                                            0))
+ggplot(data = bay_pums_regression,
+       aes(x = white,
+           y = HINCP)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F)
+
+model_pums = lm(HINCP ~ white, bay_pums_regression, weights = WGTP)
+summary(model_pums)
+
+```
+Section on PG&E not covered due to difficulty of downloading data
+
+# 3.4 Sampling bias
+
+``` {r, echo = T}
 
 
+
+```
 
 
 
