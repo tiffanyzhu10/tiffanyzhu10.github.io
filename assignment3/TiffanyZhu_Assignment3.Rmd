@@ -1,0 +1,34 @@
+---
+title: "PUBLPOL 218X Assignment 3"
+author: "Tiffany Zhu"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    number_sections: true
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# PUMS Multiple Regression: Marital Status
+
+I have read a few articles [cite sources] that claim that marital status increasingly depends on socioeconomic status. Supposedly, those who get married are increasingly high-income, well-educated individuals, while lower-income and less-educated people are choosing not to marry.
+
+I will test those claims by studying the relationship between marital status (which I set as my dependent variable) and income and educational attainment (which I set as my independent variables). This analysis will be at the individual level. I will focus on individuals aged 18 or older, since individuals under 18 rarely marry.
+
+
+
+
+``` {r data1, echo = T}
+
+```
+
+# CBG/Tract/ZCTA Regression: X, Y, and Z
+
+
+
+``` {r data2, echo = T}
+
+```
