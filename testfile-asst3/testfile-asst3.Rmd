@@ -11,6 +11,15 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
+library(tigris)
+library(censusapi)
+library(sf)
+library(leaflet)
+library(corrplot)
+
+Sys.setenv(CENSUS_KEY="5ace7165d1f551af1a6a8876ee3986faa544ea83")
+
+setwd("/Users/tiffanyzhu/Documents/Github/tiffanyzhu10.github.io/testfile-asst3")
 
 ```
 
@@ -378,9 +387,249 @@ Section on PG&E not covered due to difficulty of downloading data
 
 ``` {r, echo = T}
 
+acs_vars_2018_5yr = listCensusMetadata(name = "2018/acs/acs5",
+                                       type = "variables")
+home_panel_summary = read_csv("home_panel_summary.gz")
 
+bay_county_names =
+  c(
+    "Alameda",
+    "Contra Costa",
+    "Marin",
+    "Napa",
+    "San Francisco",
+    "San Mateo",
+    "Santa Clara",
+    "Solano",
+    "Sonoma"
+  )
+
+bay_cbgs = block_groups("CA", bay_county_names, cb = T, progress_bar = F) %>%
+           filter(COUNTYFP %in% bay_counties$COUNTYFP)
+bay_area_devices = home_panel_summary %>%
+                   filter(census_block_group %in% bay_cbgs$GEOID) %>%
+                   select(census_block_group, number_devices_residing)
+
+bay_cbg_pop = bay_counties$COUNTYFP %>%
+              map_dfr(function(x){
+                getCensus(name = "acs/acs5",
+                          vintage = 2018,
+                          region = "block group:*",
+                          regionin = paste0("state:06+county:", x),
+                          vars = "B01001_001E")
+              }) %>%
+              transmute(census_block_group = paste0(state,
+                                                    county,
+                                                    tract,
+                                                    block_group),
+                        pop = B01001_001E) %>%
+              right_join(bay_area_devices) %>%
+              mutate(coverage = number_devices_residing / pop,
+                     scale_factor = pop / number_devices_residing) %>%
+              left_join(bay_cbgs %>% select(GEOID),
+                        by = c("census_block_group" = "GEOID")) %>%
+              st_as_sf()
 
 ```
+
+``` {r, echo = T}
+
+bay_cbg_pop %>% ggplot(aes(x = pop,
+                           y = number_devices_residing)) +
+                geom_point()
+
+```
+
+``` {r, echo = T}
+
+outlier_cbg = bay_cbg_pop %>%
+              arrange(desc(number_devices_residing)) %>%
+              .[1,]
+outlier_cbg$pop
+outlier_cbg$number_devices_residing
+outlier_cbg %>% leaflet() %>%
+                addTiles() %>%
+                addPolygons()
+
+```
+
+``` {r, echo = T}
+
+bay_cbg_pop %>% ggplot(aes(x = pop,
+                           y = scale_factor)) +
+                geom_point()
+
+```
+
+``` {r}
+
+outlier_cbg = bay_cbg_pop %>%
+              arrange(desc(scale_factor)) %>%
+              .[1,]
+outlier_cbg$pop
+outlier_cbg$number_devices_residing
+outlier_cbg$scale_factor
+outlier_cbg %>% leaflet() %>%
+                addTiles() %>%
+                addPolygons()
+
+```
+
+``` {r}
+
+bay_cbg_pop %>% ggplot(aes(x = pop,
+                           y = coverage)) +
+                geom_point()
+
+```
+
+``` {r}
+
+outliers = bay_cbg_pop %>%
+           filter(scale_factor %in% boxplot.stats(scale_factor)$out)
+outliers_pal = colorQuantile(palette = "RdYlGn",
+                             domain = outliers$scale_factor,
+                             n = 10)
+leaflet() %>% addProviderTiles(providers$CartoDB.Positron) %>%
+              addPolygons(data = outliers,
+                          color = ~outliers_pal(scale_factor),
+                          label = ~scale_factor)
+
+```
+
+``` {r}
+
+bay_cbg_pop_clean = bay_cbg_pop %>%
+                    arrange(desc(scale_factor)) %>%
+                    .[-1, ] %>%
+                    arrange(desc(number_devices_residing)) %>%
+                    .[-1, ] %>%
+                    filter(scale_factor > 0) %>%
+                    filter(coverage < 1)
+bay_cbg_pop_clean %>% ggplot(aes(x = pop,
+                                 y = number_devices_residing)) +
+                      geom_point() +
+                      geom_smooth(method = lm)
+
+```
+
+``` {r}
+
+bay_cbg_elderly = bay_counties$COUNTYFP %>%
+                  map_dfr(function(x) {
+                    getCensus(name = "acs/acs5",
+                              vintage = 2018,
+                              region = "block group:*",
+                              regionin = paste0("state:06+county:", x),
+                              vars = "group(B01001)")}) %>%
+                  mutate(cbg = paste0(state,
+                                      county,
+                                      tract,
+                                      block_group)) %>%
+                  select(!c(GEO_ID,
+                            state,
+                            county,
+                            tract,
+                            block_group,
+                            NAME) &
+                         !ends_with(c("EA", "MA", "M"))) %>%
+                  pivot_longer(ends_with("E"),
+                               names_to = "variable",
+                               values_to = "estimate") %>%
+                  left_join(acs_vars_2018_5yr %>%
+                            select(name, label),
+                            by = c("variable" = "name")) %>%
+                  select(-variable) %>%
+                  separate(label,
+                           into = c(NA, NA, "sex", "age"),
+                           sep = "!!") %>%
+                  filter(!is.na(age)) %>%
+                  mutate(elderly = ifelse(
+                    age %in% c("65 and 66 years",
+                               "67 to 69 years",
+                               "70 to 74 years",
+                               "80 to 84 years",
+                               "85 years and over"),
+                    estimate,
+                    NA)) %>%
+                  group_by(cbg) %>%
+                  summarize(elderly = sum(elderly, na.rm = T),
+                            total_pop = sum(estimate, na.rm = T)) %>%
+                  mutate(percent_elderly = elderly / total_pop) %>%
+                  filter(!is.na(percent_elderly))
+
+bay_cbg_elderly_join = bay_cbg_pop_clean %>%
+                       left_join(bay_cbg_elderly,
+                                 by = c("census_block_group" = "cbg"))
+bay_cbg_elderly_join %>% ggplot(aes(x = percent_elderly,
+                                    y = coverage)) +
+                         geom_point() +
+                         geom_smooth(method = lm)
+
+model = lm(coverage ~ percent_elderly, bay_cbg_elderly_join)
+summary(model)
+
+```
+
+# Section 3.5
+
+``` {r}
+
+bay_multiple_tract = getCensus(name = "acs/acs5",
+                               vintage = 2018,
+                               region = "tract:*",
+                               regionin = "state:06+county:001,013,041,055,075,081,085,095,097",
+                               vars = c("B19001A_001E",
+                                        "B19001_001E",
+                                        "B19001_014E",
+                                        "B19001_015E",
+                                        "B19001_016E",
+                                        "B19001_017E",
+                                        "B15003_001E",
+                                        "B15003_021E",
+                                        "B15003_022E",
+                                        "B15003_023E",
+                                        "B15003_024E",
+                                        "B15003_025E")) %>%
+                      transmute(tract = paste0(state, county, tract),
+                                perc_white = B19001A_001E / B19001_001E,
+                                perc_over100k = (B19001_014E + B19001_015E + B19001_016E + B19001_017E) / B19001_001E,
+                                perc_collegedegree = (B15003_021E + B15003_022E + B15003_023E + B15003_024E +B15003_025E) / B15003_001E) %>%
+                      filter(!is.na(perc_white),
+                             !is.na(perc_over100k),
+                             !is.na(perc_collegedegree))
+
+correlationplot = bay_multiple_tract %>%
+                  select(perc_white,
+                         perc_collegedegree,
+                         perc_over100k) %>%
+                  cor()
+corrplot(correlationplot,
+         method = "number",
+         type = "upper")
+
+```
+
+``` {r}
+
+ggplot(data = bay_multiple_tract,
+       aes(x = perc_collegedegree,
+           y = perc_over100k)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+model = lm(perc_over100k ~ perc_collegedegree, bay_multiple_tract)
+summary(model)
+
+```
+
+``` {r}
+
+model = lm(perc_over100k ~ perc_white + perc_collegedegree, bay_multiple_tract)
+summary(model)
+
+```
+
 
 
 
