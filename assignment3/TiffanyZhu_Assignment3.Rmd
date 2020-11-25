@@ -31,6 +31,8 @@ I have read a few articles [cite sources] that claim that marital status increas
 
 I will test those claims by studying the relationship between marital status (which I set as my dependent variable) and income and educational attainment (which I set as my independent variables). This analysis will be at the census tract level. I will focus on individuals aged 18 or older, since individuals under 18 rarely marry.
 
+## Data setup
+
 ``` {r pums_setup, eval = F}
 
 ca_pums = get_pums(variables = c("PUMA", "AGEP", "MAR", "SCHL", "PINCP"),
@@ -42,7 +44,7 @@ saveRDS(ca_pums, file = "ca_pums.rds")
 
 ```
 
-``` {r pums1, echo = T}
+``` {r pums1, echo = T, warning = F, message = F}
 # Get PUMS and PUMAS data
 
 pums_vars_2019 = pums_variables %>%
@@ -86,7 +88,7 @@ bay_pums = ca_pums %>%
 bay_pums
 ```
 
-``` {r pums2, echo = T}
+``` {r pums2, echo = T, message = F, warning = F}
 # Clean dataset
 # Filter out all children under age 3 (SCHL == bb)
 # Convert "character"-encoded variables MAR and SCHL to doubles
@@ -121,19 +123,57 @@ bay_marriage = bay_pums %>%
 bay_marriage
 ```
 
+## Testing single regressions: income vs. marriage rate
+
 ``` {r pums3, echo = T}
 # Regression
 
 model = lm(perc_married ~ mean_personal_income, bay_marriage)
 summary(model)
 
+# Scatterplot
+
 ggplot(data = bay_marriage,
        aes(x = mean_personal_income,
            y = perc_married)) +
   geom_point() +
   geom_smooth(method = "lm")
+```
+
+From the regression, it doesn't seem that personal income itself has an impact on the likelihood of marriage in any given census tract. A scatterplot seems to show a positive correlation between personal income and marriage rates, but the margin of error for this line is high — it's possible to draw a straight line through the area covered by the margin of error.
+
+## Testing single regressions: educational attainment vs. marriage rate
+
+``` {r pums4, echo = T}
+# Regression
+
+model = lm(perc_married ~ perc_college, bay_marriage)
+summary(model)
+
+# Scatterplot
+
+ggplot(data = bay_marriage,
+       aes(x = perc_college,
+           y = perc_married)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+It also appears from the regression that having a college education does not have an impact on marriage rates. The scatterplot shows an essentially flat line with a large margin of error, suggesting that it is unlikely the two are related.
+
+## Adding it up: multiple regression
+
+``` {r pums5, echo = T}
+# Regression
+
+model = lm(perc_married ~ mean_personal_income + perc_college, bay_marriage)
+summary(model)
 
 ```
+
+When regressing both together, it seems that both factors have a significant impact on marriage rates. Increases in mean personal income correspond to increases in marriage rates, as predicted in my hypothesis. Contrary to my hypothesis, increases in college attendance correspond to *decreases* in marriage rates. However, this effect seems to be less pronounced than the income effect.
+
+From this regression, it is possible to conclude that wealthier people are more likely to get married than poorer people. This trend overrides a tendency for college-educated people to get married less often than non-college-educated people.
 
 # CBG/Tract/ZCTA Regression: X, Y, and Z
 
