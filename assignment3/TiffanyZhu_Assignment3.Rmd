@@ -27,9 +27,9 @@ Sys.setenv(CENSUS_KEY="5ace7165d1f551af1a6a8876ee3986faa544ea83")
 
 # PUMS Multiple Regression: Marital Status
 
-I have read a few articles [cite sources] that claim that marital status increasingly depends on socioeconomic status. Supposedly, those who get married are increasingly high-income, well-educated individuals, while lower-income and less-educated people are choosing not to marry.
+Many recent studies have found that marital status increasingly correlates with socioeconomic status ([UPenn Wharton Budget Model](https://budgetmodel.wharton.upenn.edu/issues/2016/2/3/socioeconomic-patterns-of-marriage-and-divorce), [Pew Research](https://www.pewresearch.org/fact-tank/2017/09/14/as-u-s-marriage-rate-hovers-at-50-education-gap-in-marital-status-widens/), [American Enterprise Institute](https://www.aei.org/research-products/report/the-marriage-divide-how-and-why-working-class-families-are-more-fragile-today/)). In particular, these studies have shown that those who get married are increasingly high-income, college-educated individuals who have the financial stability to support a family.
 
-I will test those claims by studying the relationship between marital status (which I set as my dependent variable) and income and educational attainment (which I set as my independent variables). This analysis will be at the census tract level. I will focus on individuals aged 18 or older, since individuals under 18 rarely marry.
+I will use individual-level Census PUMS data to see if these trends also hold in the Bay Area. In this section, I study the relationship between marital status (which I set as my dependent variable) and income and educational attainment (which I set as my independent variables) in the Bay Area. This analysis will be at the census tract level. I will focus on individuals aged 18 or older, since individuals under 18 rarely marry.
 
 ## Data setup
 
