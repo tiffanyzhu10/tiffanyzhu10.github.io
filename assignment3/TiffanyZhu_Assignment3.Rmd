@@ -199,7 +199,7 @@ In this section, I investigate whether this relationship persists in the Bay Are
 
 ## Data setup: 500 Cities data
 
-``` {r tract_setup, echo = T, message = F, warning = F}
+``` {r tract_setup1, echo = T, message = F, warning = F}
 
 all_health = read_csv("https://chronicdata.cdc.gov/api/views/6vp6-wxuq/rows.csv?accessType=DOWNLOAD")
 ca_health = filter(all_health, StateAbbr == "CA")
@@ -220,6 +220,8 @@ bay_sleep = ca_sleep %>%
             left_join(ca_tracts %>% select(GEOID),
                       by = c("TractFIPS" = "GEOID")) %>%
             st_as_sf()
+
+bay_sleep
 ```
 
 ## Mapping sleep deprivation
@@ -250,8 +252,38 @@ leaflet() %>%
 
 We use ACS 2018 5-year data because tract-level data is only available in the 5-year surveys.
 
-``` {r tracts2, echo = T}
+``` {r tract_setup2, echo = T}
+acs_vars_2018_5yr = listCensusMetadata(name = "2018/acs/acs5",
+                                       type = "variables")
 
+bay_income_race = getCensus(name = "acs/acs5",
+                            vintage = 2018,
+                            region = "tract:*",
+                            regionin = "state:06+county:001,013,041,055,075,081,085,095,097",
+                            vars = c("B19001A_001E",
+                                     "B19001_001E",
+                                     "B19013_001E")) %>%
+                  transmute(tract = paste0(state, county, tract),
+                            perc_white = B19001A_001E / B19001_001E * 100,
+                            med_income = B19013_001E) %>%
+                  filter(!is.na(perc_white),
+                         !is.na(med_income))
+
+bay_income_race
 ```
+
+## Merging the datasets
+
+``` {r tract_setup3, echo = T}
+bay_sleep_income_race = bay_income_race %>%
+                        left_join(bay_sleep %>% select(TractFIPS, Data_Value),
+                                  by = c("tract" = "TractFIPS")) %>%
+                        filter(!is.na(Data_Value))
+
+bay_sleep_income_race
+```
+
+## Multiple regression
+
 
 
