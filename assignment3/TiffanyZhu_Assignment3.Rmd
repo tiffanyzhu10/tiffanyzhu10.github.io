@@ -9,7 +9,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 setwd("~/Documents/GitHub/tiffanyzhu10.github.io/assignment3")
 library(tidyverse)
 library(plotly)
@@ -45,7 +45,7 @@ saveRDS(ca_pums, file = "ca_pums.rds")
 
 ```
 
-``` {r pums1, echo = T, warning = F, message = F}
+``` {r pums1}
 # Get PUMS and PUMAS data
 
 pums_vars_2019 = pums_variables %>%
@@ -89,7 +89,7 @@ bay_pums = ca_pums %>%
 bay_pums
 ```
 
-``` {r pums2, echo = T, message = F, warning = F}
+``` {r pums2}
 # Clean dataset
 # Filter out all children under age 3 (SCHL == bb)
 # Convert "character"-encoded variables MAR and SCHL to doubles
@@ -125,9 +125,41 @@ bay_marriage = bay_pums %>%
 bay_marriage
 ```
 
+## Mapping Bay Area marriage rates
+
+``` {r pums3}
+bay_marriage_map = bay_marriage %>%
+                   left_join(bay_pumas %>% select(PUMACE10),
+                             by = c("PUMA" = "PUMACE10")) %>%
+                   st_as_sf()
+
+marriage_pal = colorNumeric(palette = "Oranges",
+                            domain = bay_marriage_map$perc_married)
+
+leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = bay_marriage_map,
+              fillColor = ~marriage_pal(perc_married),
+              color = "white",
+              opacity = 0.5,
+              fillOpacity = 0.5,
+              weight = 1,
+              label = ~paste0(round(perc_married),
+                              "% married individuals"),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  opacity = 1)) %>%
+  addLegend(data = bay_marriage_map,
+            pal = marriage_pal,
+            values = ~perc_married,
+            title = "Percentage of population<br>that is or has been married")
+
+```
+
+Most PUMAs are majority-married people. The exceptions are San Francisco and Berkeley, but these are understandable exceptions — San Francisco is known for having a high population of young single tech workers, while Berkeley has a large population of young single college students.
+
 ## Single regression: income vs. marriage rate
 
-``` {r pums3, echo = T}
+``` {r pums4}
 # Regression
 
 model = lm(perc_married ~ mean_personal_income, bay_marriage)
@@ -146,7 +178,7 @@ From the regression, it doesn't seem that personal income itself has an impact o
 
 ## Single regression: educational attainment vs. marriage rate
 
-``` {r pums4, echo = T}
+``` {r pums5}
 # Regression
 
 model = lm(perc_married ~ perc_college, bay_marriage)
@@ -165,7 +197,7 @@ It also appears from the regression that having a college education does not hav
 
 ## Multiple regression
 
-``` {r pums5, echo = T}
+``` {r pums6}
 # Correlation plot
 
 correlationplot = bay_marriage %>%
@@ -180,28 +212,34 @@ corrplot(correlationplot,
 
 Before interpreting regression results, it is important to note that college education and income are highly correlated, as shown in the correlation plot above. Thus there is bound to be collinearity in this regression, which undermines the model's predictive power.
 
-``` {r pums6, echo = T}
+``` {r pums7}
 # Regression
 
 model = lm(perc_married ~ mean_personal_income + perc_college, bay_marriage)
 summary(model)
 ```
 
-When regressing both together, it seems that both factors have a significant impact on marriage rates. Increases in mean personal income correspond to increases in marriage rates, as predicted in my hypothesis. Contrary to what the above cited studies find, increases in college attendance correspond to *decreases* in marriage rates. However, this effect seems to be less pronounced than the income effect.
+When regressing both together, it seems that both factors have a significant impact on marriage rates. Increases in mean personal income correspond to increases in marriage rates, as predicted in my hypothesis. Contrary to what previous researchers find, increases in college attendance correspond to *decreases* in marriage rates. However, this effect seems to be less pronounced than the income effect.
 
-A few caveats that might explain this discrepancy is ???
+One possible explanation for this discrepancy is that unlike in most of the U.S., low-income people in the Bay Area are predominantly immigrants. Immigrants across the socioeconomic spectrum tend to be married at much higher rates than American-born citizens, according to the [American Enterprise Institute](https://www.aei.org/research-products/report/the-marriage-divide-how-and-why-working-class-families-are-more-fragile-today/) and the [Institute for Family Studies](https://ifstudies.org/blog/immigrants-marriage-family-class/). Since so many low-income people in the Bay Area are immigrants, it is possible that they are raising marriage rates among less-educated low-income people even higher than marriage rates among college-educated people.
+
+Another possible explanation is that there are enough young single college graduates in San Francisco that they weaken the relationship between college education and marriage rates.
 
 # CBG/Tract/ZCTA-Level Regression: Sleep Deprivation
 
 According to the [CDC](https://www.cdc.gov/sleep/data_statistics.html) and a study published in [*Sleep Medicine*](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2861987/), poorer people tend to sleep less than richer people. Additionally, a recent meta-analysis in [*Sleep Health*](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5771439/) finds that white children and adolescents tend to sleep more than their non-white peers. Intuitively, it makes sense that poorer people sleep less, since they may work longer hours and undergo more stresses related to financial insecurity. Since people of color, especially Black and Hispanic/Latinx people, are disproportionately likely to be poor, it also makes sense that race correlates with sleep deprivation.
 
-In this section, I investigate whether this relationship persists in the Bay Area. I conduct a Census tract-level analysis using data from the CDC's [500 Cities](https://www.cdc.gov/500cities/index.htm) project and the 2018 American Community Survey 5-year estimates.
+In this section, I investigate whether this relationship also exists in the Bay Area. I conduct a Census tract-level analysis using data from the CDC's [500 Cities](https://www.cdc.gov/500cities/index.htm) project and the 2018 American Community Survey 5-year estimates.
 
 ## Data setup: 500 Cities data
 
-``` {r tract_setup1, echo = T, message = F, warning = F}
-
+``` {r tract_setup, eval = F}
 all_health = read_csv("https://chronicdata.cdc.gov/api/views/6vp6-wxuq/rows.csv?accessType=DOWNLOAD")
+saveRDS(all_health, file = "all_health.rds")
+```
+
+``` {r tracts1}
+all_health = readRDS("all_health.rds")
 ca_health = filter(all_health, StateAbbr == "CA")
 ca_sleep = filter(ca_health, MeasureId == "SLEEP")
 
@@ -227,7 +265,7 @@ bay_sleep
 
 ## Mapping sleep deprivation
 
-``` {r tracts1, echo = T, warning = F, message = F}
+``` {r tracts2}
 sleep_pal = colorNumeric(palette = "Purples",
                          domain = bay_sleep$perc_sleepdep)
 
@@ -253,7 +291,7 @@ leaflet() %>%
 
 We use ACS 2018 5-year data because tract-level data is only available in the 5-year surveys.
 
-``` {r tract_setup2, echo = T}
+``` {r tracts3}
 acs_vars_2018_5yr = listCensusMetadata(name = "2018/acs/acs5",
                                        type = "variables")
 
@@ -275,7 +313,7 @@ bay_income_race
 
 ## Merging the datasets
 
-``` {r tract_setup3, echo = T}
+``` {r tracts4}
 bay_sleep_income_race = bay_income_race %>%
                         left_join(bay_sleep %>% select(TractFIPS, perc_sleepdep),
                                   by = c("tract" = "TractFIPS")) %>%
@@ -284,9 +322,11 @@ bay_sleep_income_race = bay_income_race %>%
 bay_sleep_income_race
 ```
 
-## Outliers in income variable
+## Identifying outliers
 
-``` {r tracts2, echo = T}
+In plotting the relationship between income and sleep deprivation, it becomes obvious that there are some outliers in the income variable.
+
+``` {r tracts5}
 # Scatterplot
 
 ggplot(data = bay_sleep_income_race,
@@ -296,9 +336,7 @@ ggplot(data = bay_sleep_income_race,
   geom_smooth(method = "lm")
 ```
 
-It appears that there are a couple of outliers in the income variable that completely skewer the regression. Let's examine what the outliers are and where they are located.
-
-``` {r tracts3, echo = T, message = F, warning = F}
+``` {r tracts6}
 # Finding the outliers
 
 outlier_exam = bay_sleep_income_race %>%
@@ -314,18 +352,16 @@ outlier_exam %>% leaflet() %>%
                  addPolygons()
 ```
 
-As it turns out, the outliers are both non-residential areas in San Francisco (Golden Gate Park and an industrial area around Islais Creek), and the encoding suggests that income is not available in those two areas. I drop those two values and use this adjusted dataset to perform all further analyses.
+As it turns out, the outliers are two non-residential areas in San Francisco (Golden Gate Park and an industrial area around Islais Creek). The encoding suggests that income is not available in those two areas. I drop those two values and use this adjusted dataset to perform all further analyses.
 
-## Dropping outliers
-
-``` {r tracts4, echo = T}
+``` {r tracts7}
 bay_sleep_income_race = bay_sleep_income_race %>%
                         filter(med_income > 0)
 ```
 
 ## Single regression: Income vs. sleep deprivation
 
-``` {r tracts5, echo = T}
+``` {r tracts8}
 # Regression
 
 model = lm(perc_sleepdep ~ med_income, bay_sleep_income_race)
@@ -344,7 +380,7 @@ Now that the outliers have been removed, it is clear that there is a negative as
 
 ## Single regression: Race vs. sleep deprivation
 
-``` {r tracts6, echo = T}
+``` {r tracts9}
 # Regression
 
 model = lm(perc_sleepdep ~ perc_white, bay_sleep_income_race)
@@ -363,7 +399,7 @@ There is a negative association between the percent of white people in a tract a
 
 ## Multiple regression
 
-``` {r tracts7, echo = T}
+``` {r tracts10}
 # Correlation plot
 
 correlationplot = bay_sleep_income_race %>%
@@ -378,7 +414,7 @@ corrplot(correlationplot,
 
 There is a relationship between median income and percentage of white people in each census tract, but the relationship is not strong enough that I am concerned about collinearity for this analysis.
 
-``` {r tracts8, echo = T}
+``` {r tracts11}
 # Regression
 
 model = lm(perc_sleepdep ~ med_income + perc_white, bay_sleep_income_race)
@@ -387,5 +423,5 @@ summary(model)
 
 Echoing the single regression results above, both income and race have a significant impact on sleep deprivation rates. An income increase in $10,000 corresponds to a 0.4 percentage point decrease in sleep deprivation rates; a 1 percentage point increase in the percentage of white people corresponds to a 0.08 percentage point decrease in the percentage of sleep deprivation rates.
 
-Overall, the national trends reported in the literature are echoed in the Bay Area.
+Overall, national trends in sleep deprivation are echoed in the Bay Area.
 
