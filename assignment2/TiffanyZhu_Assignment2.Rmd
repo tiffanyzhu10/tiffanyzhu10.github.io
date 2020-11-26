@@ -10,7 +10,7 @@ output:
 
 
 ``` {r setup, include=F}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 setwd("~/Documents/GitHub/tiffanyzhu10.github.io/assignment2")
 library(tidyverse)
 library(plotly)
@@ -30,23 +30,26 @@ Sys.setenv(CENSUS_KEY="5ace7165d1f551af1a6a8876ee3986faa544ea83")
 
 ## Data setup
 
+```{r, eval = F}
+acs_vars_2018_5yr = listCensusMetadata(name = "2018/acs/acs5",
+                                       type = "variables")
+saveRDS(acs_vars_2018_5yr, file = "acs_vars_2018_5yr.rds")
+
+acs_vars_2019_1yr = listCensusMetadata(name = "2019/acs/acs1",
+                                       type = "variables")
+saveRDS(acs_vars_2019_1yr, file = "acs_vars_2019_1yr.rds")
+
+```
+
 ``` {r race1, warning = F, message = F, echo = T}
-acs_vars_2018_5yr <-
-  listCensusMetadata(
-    name = "2018/acs/acs5",
-    type = "variables"
-  )
-acs_vars_2019_1yr <-
-  listCensusMetadata(
-    name = "2019/acs/acs1",
-    type = "variables"
-  )
+acs_vars_2018_5yr = readRDS("acs_vars_2018_5yr.rds")
+acs_vars_2019_1yr = readRDS("acs_vars_2019_1yr.rds")
 
 census_race_labels = c("White Alone",
                        "Black or African American",
                        "American Indian and Alaska Native Alone",
                        "Asian Alone",
-                       "Native Hawaiian and Other Pacific Islander Alone)",
+                       "Native Hawaiian and Other Pacific Islander Alone",
                        "Some Other Race Alone",
                        "Two or More Races")
 bay_educ_race = 1:7 %>%
@@ -102,8 +105,38 @@ bay_educ_race %>% group_by(education, race) %>%
 
 ```
 
+## Stacked chart
+
+``` {r, echo = T}
+bay_race_total = bay_educ_race %>%
+                 group_by(race) %>%
+                 summarize(estimate = sum(estimate)) %>%
+                 mutate(education = "Total")
+bay_educ_race %>% group_by(education, race) %>%
+                  summarize(estimate = sum(estimate)) %>%
+                  rbind(bay_race_total) %>%
+                  ggplot() +
+                  geom_bar(aes(x = education %>%
+                                   factor(levels = rev(c("Total",
+                                                         bay_educ_race$education[1:8]))),
+                               y = estimate,
+                               fill = race),
+                           stat = "identity") +
+                  labs(x = "Educational attainment",
+                       y = "Number of households",
+                       title = "Santa Clara County educational attainment by race",
+                       subtitle = "Population 25 years or older",
+                       fill = "Race of householder") +
+                  coord_flip() +
+                  theme(legend.position = "bottom",
+                        legend.direction = "vertical")
+
+```
+
 ## Analysis
 
+* There is no education data available for Native Hawaiians and other Pacific Islanders. Possibly that is because this population is very small in the Bay Area.
+* As the stacked chart shows, most Bay Area residents possess at least a bachelor's degree. Smaller numbers of residents possess some college with no degree, and smaller still numbers possess a high school diploma alone.
 * "Some Other Race Alone" (unspecified by definition, but I am guessing these are primarily Hispanics/Latinos) is disproportionately represented among lower educational attainment levels (GED/high school diploma or less).
 * Asians are overrepresented among those with bachelor's and graduate/professional degrees.
 * Interestingly enough, white people are overrepresented among those with high school diplomas, GEDs or alternative credentials, and those with some college and no degree.
@@ -267,7 +300,7 @@ bay_internet = bay_pums %>%
                        0)) %>%
                group_by(PUMA) %>%
                mutate(perc_nointernet = sum(no_internet, na.rm = T)/
-                                           (sum(PWGTP, na.rm = T))*100) %>%
+                                        (sum(PWGTP, na.rm = T))*100) %>%
                left_join(bay_pumas %>% select(PUMACE10),
                                        by = c("PUMA" = "PUMACE10")) %>%
                st_as_sf()
@@ -291,7 +324,8 @@ leaflet() %>%
               weight = 1,
               label = ~paste0(round(perc_nointernet),
                               "% K-12 students without Internet access"),
-              highlightOptions = highlightOptions(weight = 2, opacity = 1)) %>%
+              highlightOptions = highlightOptions(weight = 2,
+                                                  opacity = 1)) %>%
   addLegend(data = bay_internet,
             pal = pums_pal,
             values = ~perc_nointernet,
@@ -328,7 +362,9 @@ sc_mobility_current_19 = getCensus(name = "acs/acs1",
                           separate(label,
                                    into = c(NA, NA, "mobility", "education"),
                                    sep = "!!") %>%
-                          mutate(mobility = ifelse(mobility %in% c("Same house 1 year ago:", "Moved within same county:"),
+                          mutate(mobility = ifelse(
+                                   mobility %in% c("Same house 1 year ago:",
+                                                   "Moved within same county:"),
                                    "Here since last year",
                                    "Inflow")) %>%
                           filter(!is.na(education)) %>%
@@ -351,9 +387,11 @@ sc_mobility_lastyear_19 = getCensus(name = "acs/acs1",
                            separate(label,
                                     into = c(NA, NA, "mobility", "education"),
                                     sep = "!!") %>%
-                           mutate(mobility = ifelse(mobility %in% c("Same house:", "Moved within same county:"),
-                                                    "Here since last year",
-                                                    "Outflow")) %>%
+                           mutate(mobility = ifelse(
+                                    mobility %in% c("Same house:",
+                                                    "Moved within same county:"),
+                                    "Here since last year",
+                                    "Outflow")) %>%
                            filter(!is.na(education)) %>%
                            group_by(mobility, education) %>%
                            summarize(estimate = sum(estimate))
@@ -391,7 +429,9 @@ sc_flows_19 = rbind(sc_mobility_current_18,
                      pivot_wider(names_from = mobility,
                                  values_from = estimate) %>%
                      mutate(`External net` = Inflow - Outflow,
-                            `Internal net` = `Here this year` - `Here last year` - `External net`,) %>%
+                            `Internal net` = `Here this year` -
+                                             `Here last year` -
+                                             `External net`,) %>%
                      select(`Education level` = education,
                             `Internal net`,
                             `External net`,
@@ -404,14 +444,23 @@ sc_flows_19 = rbind(sc_mobility_current_18,
 ## Table
 
 ``` {r migration2, echo = T}
+# Rearrange data to be in order of educational attainment
+attainment_ordered = c("Less than high school graduate",
+                       "High school graduate (includes equivalency)",
+                       "Some college or associate's degree",
+                       "Bachelor's degree",
+                       "Graduate or professional degree")
 
-sc_flows_19
+sc_flows_19 %>%
+  mutate(`Education level` = factor(`Education level`,
+                                    levels = attainment_ordered)) %>%
+  arrange(`Education level`)
 
 ```
 
 "Internal net" refers to changes in this category *not* due to migration into and out of the county; "external net" refers to changes that *are* due to migration into and out of the county.
 
-Looking at the "Internal Net" column, it appears that the number of less-educated people grew for reasons not related to immigration or emigration from the county, while numbers of more-educated people fell. This is a bizarre finding since it is not generally possible for people to lose education, but one possible explanation is a large number of survey respondents were high school and college students being counted for the first time (the ACS counts people from age 15 upwards).
+Looking at the "Internal Net" column, it appears that the number of less-educated people grew for reasons not related to immigration or emigration from the county, while numbers of more-educated people fell. This is a bizarre finding since it is not generally possible for people to lose education, but one possible explanation is a large number of survey respondents were high school and college students being counted for the first time (the ACS counts people from age 15 upwards). Another possible explanation that an unusually large number of people with bachelor's and above degrees died from 2018 to 2019.
 
-Looking at the "External Net" column, it seems that people of most educational levels are emigrating from the county except for the extremely well educated (those with a graduate/professional degree) and the least educated (high school graduates). This pattern squares more with conventional logic about Bay Area migration patterns and suggests that the Bay Area economy tend to draw both highly-educated workers (who work as researchers, tech workers, or other highly-skilled occupations), and less-educated workers (who work in service-oriented occupations).
+Looking at the "External Net" column, it seems that people of most educational levels are emigrating from the county except for the extremely well educated (those with a graduate/professional degree) and the least educated (high school graduates). This pattern squares more with conventional logic about Bay Area migration patterns and suggests that the Bay Area economy tend to draw both highly-educated workers (who work as researchers, tech workers, or other highly-skilled occupations), and less-educated workers (who work in service-oriented occupations). Overall, the data suggests that to some extent, these extremely well-educated and less-educated people are pushing out people who are moderately educated. However, this effect is limited, since the total outflow (about 4,000 people) is much less than the total inflow (about 11,000 people). 
 
