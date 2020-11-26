@@ -19,6 +19,7 @@ library(leaflet)
 library(zoo)
 library(censusapi)
 library(tidycensus)
+library(corrplot)
 
 census_api_key("5ace7165d1f551af1a6a8876ee3986faa544ea83")
 
@@ -29,7 +30,7 @@ Sys.setenv(CENSUS_KEY="5ace7165d1f551af1a6a8876ee3986faa544ea83")
 
 Many recent studies have found that marital status increasingly correlates with socioeconomic status ([UPenn Wharton Budget Model](https://budgetmodel.wharton.upenn.edu/issues/2016/2/3/socioeconomic-patterns-of-marriage-and-divorce), [Pew Research](https://www.pewresearch.org/fact-tank/2017/09/14/as-u-s-marriage-rate-hovers-at-50-education-gap-in-marital-status-widens/), [American Enterprise Institute](https://www.aei.org/research-products/report/the-marriage-divide-how-and-why-working-class-families-are-more-fragile-today/)). In particular, these studies have shown that those who get married are increasingly high-income, college-educated individuals who have the financial stability to support a family.
 
-I will use individual-level Census PUMS data to see if these trends also hold in the Bay Area. In this section, I study the relationship between marital status (which I set as my dependent variable) and income and educational attainment (which I set as my independent variables) in the Bay Area. This analysis will be at the census tract level. I will focus on individuals aged 18 or older, since individuals under 18 rarely marry.
+I will use individual-level Census PUMS data to see if these trends also hold in the Bay Area. In this section, I study the relationship between marital status (which I set as my dependent variable) and income and educational attainment (which I set as my independent variables) in the Bay Area. This analysis will be at the PUMA level. I will focus on individuals aged 18 or older, since individuals under 18 rarely marry.
 
 ## Data setup
 
@@ -97,6 +98,7 @@ bay_pums
 # Create new variable "college" representing number of college-educated individuals in each PUMA
 # Collapse to PUMAs
 # Calculate percentage of married and college-educated people in each PUMA
+# Additionally calculate weighted mean income in each PUMA
 
 bay_marriage = bay_pums %>%
                filter(SCHL != "bb") %>%
@@ -123,7 +125,7 @@ bay_marriage = bay_pums %>%
 bay_marriage
 ```
 
-## Testing single regressions: income vs. marriage rate
+## Single regression: income vs. marriage rate
 
 ``` {r pums3, echo = T}
 # Regression
@@ -140,9 +142,9 @@ ggplot(data = bay_marriage,
   geom_smooth(method = "lm")
 ```
 
-From the regression, it doesn't seem that personal income itself has an impact on the likelihood of marriage in any given census tract. A scatterplot seems to show a positive correlation between personal income and marriage rates, but the margin of error for this line is high — it's possible to draw a straight line through the area covered by the margin of error.
+From the regression, it doesn't seem that personal income itself has an impact on the likelihood of marriage in any given census tract. (An increase in $10,000 in income corresponds to a 0.5 percentage point increase in marriage rate, a small increase indeed.) A scatterplot seems to show a positive correlation between personal income and marriage rates, but the margin of error for this line is high — it's possible to draw a straight line through the area covered by the margin of error.
 
-## Testing single regressions: educational attainment vs. marriage rate
+## Single regression: educational attainment vs. marriage rate
 
 ``` {r pums4, echo = T}
 # Regression
@@ -161,24 +163,95 @@ ggplot(data = bay_marriage,
 
 It also appears from the regression that having a college education does not have an impact on marriage rates. The scatterplot shows an essentially flat line with a large margin of error, suggesting that it is unlikely the two are related.
 
-## Adding it up: multiple regression
+## Multiple regression
 
 ``` {r pums5, echo = T}
+# Correlation plot
+
+correlationplot = bay_marriage %>%
+                  select(mean_personal_income,
+                         perc_college,
+                         perc_married) %>%
+                  cor()
+corrplot(correlationplot,
+         method = "number",
+         type = "upper")
+```
+
+Before interpreting regression results, it is important to note that college education and income are highly correlated, as shown in the correlation plot above. Thus there is bound to be collinearity in this regression, which undermines the model's predictive power.
+
+``` {r pums6, echo = T}
 # Regression
 
 model = lm(perc_married ~ mean_personal_income + perc_college, bay_marriage)
 summary(model)
+```
+
+When regressing both together, it seems that both factors have a significant impact on marriage rates. Increases in mean personal income correspond to increases in marriage rates, as predicted in my hypothesis. Contrary to what the above cited studies find, increases in college attendance correspond to *decreases* in marriage rates. However, this effect seems to be less pronounced than the income effect.
+
+A few caveats that might explain this discrepancy is ???
+
+# CBG/Tract/ZCTA-Level Regression: Sleep Deprivation
+
+According to the [CDC](https://www.cdc.gov/sleep/data_statistics.html) and a study published in [*Sleep Medicine*](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2861987/), poorer people tend to sleep less than richer people. Additionally, a recent meta-analysis in [*Sleep Health*](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5771439/) finds that white children and adolescents tend to sleep more than their non-white peers. Intuitively, it makes sense that poorer people sleep less, since they may work longer hours and undergo more stresses related to financial insecurity. Since people of color, especially Black and Hispanic/Latinx people, are disproportionately likely to be poor, it also makes sense that race correlates with sleep deprivation.
+
+In this section, I investigate whether this relationship persists in the Bay Area. I conduct a Census tract-level analysis using data from the CDC's [500 Cities](https://www.cdc.gov/500cities/index.htm) project and the 2018 American Community Survey 5-year estimates.
+
+## Data setup: 500 Cities data
+
+``` {r tract_setup, echo = T, message = F, warning = F}
+
+all_health = read_csv("https://chronicdata.cdc.gov/api/views/6vp6-wxuq/rows.csv?accessType=DOWNLOAD")
+ca_health = filter(all_health, StateAbbr == "CA")
+ca_sleep = filter(ca_health, MeasureId == "SLEEP")
+
+# Filter to Bay Area census tracts
+ca_tracts = tracts("CA", cb = T, progress_bar = F)
+
+bay_sleep = ca_sleep %>%
+            filter(!is.na(TractFIPS)) %>%
+            filter(!is.na(Data_Value)) %>%
+            left_join(ca_tracts %>% select(GEOID),
+                      by = c("TractFIPS" = "GEOID")) %>%
+            st_as_sf() %>%
+            st_centroid() %>%
+            .[bay_counties, ] %>%
+            st_set_geometry(NULL) %>%
+            left_join(ca_tracts %>% select(GEOID),
+                      by = c("TractFIPS" = "GEOID")) %>%
+            st_as_sf()
+```
+
+## Mapping sleep deprivation
+
+``` {r tracts1, echo = T, warning = F, message = F}
+sleep_pal = colorNumeric(palette = "Purples",
+                         domain = bay_sleep$Data_Value)
+
+leaflet() %>%
+  addTiles() %>%
+  addPolygons(
+    data = bay_sleep,
+    fillColor = ~sleep_pal(Data_Value),
+    color = "white",
+    opacity = 0.5,
+    fillOpacity = 0.75,
+    weight = 1,
+    label = ~paste0(round(Data_Value), "% in ", TractFIPS),
+    highlightOptions = highlightOptions(weight = 2,
+                                        opacity = 1)) %>%
+    addLegend(data = bay_sleep,
+              pal = sleep_pal,
+              values = ~Data_Value,
+              title = "Percentage of residents<br>who sleep less than 7<br>hours per night")
+```
+
+## Data setup: ACS 2018 5-Year Data
+
+We use ACS 2018 5-year data because tract-level data is only available in the 5-year surveys.
+
+``` {r tracts2, echo = T}
 
 ```
 
-When regressing both together, it seems that both factors have a significant impact on marriage rates. Increases in mean personal income correspond to increases in marriage rates, as predicted in my hypothesis. Contrary to my hypothesis, increases in college attendance correspond to *decreases* in marriage rates. However, this effect seems to be less pronounced than the income effect.
 
-From this regression, it is possible to conclude that wealthier people are more likely to get married than poorer people. This trend overrides a tendency for college-educated people to get married less often than non-college-educated people.
-
-# CBG/Tract/ZCTA Regression: X, Y, and Z
-
-
-
-``` {r data2, echo = T}
-
-```
