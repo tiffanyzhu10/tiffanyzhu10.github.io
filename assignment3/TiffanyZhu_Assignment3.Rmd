@@ -211,6 +211,7 @@ ca_tracts = tracts("CA", cb = T, progress_bar = F)
 bay_sleep = ca_sleep %>%
             filter(!is.na(TractFIPS)) %>%
             filter(!is.na(Data_Value)) %>%
+            mutate(perc_sleepdep = Data_Value) %>%
             left_join(ca_tracts %>% select(GEOID),
                       by = c("TractFIPS" = "GEOID")) %>%
             st_as_sf() %>%
@@ -228,23 +229,23 @@ bay_sleep
 
 ``` {r tracts1, echo = T, warning = F, message = F}
 sleep_pal = colorNumeric(palette = "Purples",
-                         domain = bay_sleep$Data_Value)
+                         domain = bay_sleep$perc_sleepdep)
 
 leaflet() %>%
   addTiles() %>%
   addPolygons(
     data = bay_sleep,
-    fillColor = ~sleep_pal(Data_Value),
+    fillColor = ~sleep_pal(perc_sleepdep),
     color = "white",
     opacity = 0.5,
     fillOpacity = 0.75,
     weight = 1,
-    label = ~paste0(round(Data_Value), "% in ", TractFIPS),
+    label = ~paste0(round(perc_sleepdep), "% in ", TractFIPS),
     highlightOptions = highlightOptions(weight = 2,
                                         opacity = 1)) %>%
     addLegend(data = bay_sleep,
               pal = sleep_pal,
-              values = ~Data_Value,
+              values = ~perc_sleepdep,
               title = "Percentage of residents<br>who sleep less than 7<br>hours per night")
 ```
 
@@ -276,14 +277,115 @@ bay_income_race
 
 ``` {r tract_setup3, echo = T}
 bay_sleep_income_race = bay_income_race %>%
-                        left_join(bay_sleep %>% select(TractFIPS, Data_Value),
+                        left_join(bay_sleep %>% select(TractFIPS, perc_sleepdep),
                                   by = c("tract" = "TractFIPS")) %>%
-                        filter(!is.na(Data_Value))
+                        filter(!is.na(perc_sleepdep))
 
 bay_sleep_income_race
 ```
 
+## Outliers in income variable
+
+``` {r tracts2, echo = T}
+# Scatterplot
+
+ggplot(data = bay_sleep_income_race,
+       aes(x = med_income,
+           y = perc_sleepdep)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+It appears that there are a couple of outliers in the income variable that completely skewer the regression. Let's examine what the outliers are and where they are located.
+
+``` {r tracts3, echo = T, message = F, warning = F}
+# Finding the outliers
+
+outlier_exam = bay_sleep_income_race %>%
+               st_as_sf() %>%
+               arrange(med_income) %>%
+               .[c(1,2),]
+outlier_exam
+
+# Mapping the outliers
+
+outlier_exam %>% leaflet() %>%
+                 addTiles() %>%
+                 addPolygons()
+```
+
+As it turns out, the outliers are both non-residential areas in San Francisco (Golden Gate Park and an industrial area around Islais Creek), and the encoding suggests that income is not available in those two areas. I drop those two values and use this adjusted dataset to perform all further analyses.
+
+## Dropping outliers
+
+``` {r tracts4, echo = T}
+bay_sleep_income_race = bay_sleep_income_race %>%
+                        filter(med_income > 0)
+```
+
+## Single regression: Income vs. sleep deprivation
+
+``` {r tracts5, echo = T}
+# Regression
+
+model = lm(perc_sleepdep ~ med_income, bay_sleep_income_race)
+summary(model)
+
+# Scatterplot
+
+ggplot(data = bay_sleep_income_race,
+       aes(x = med_income,
+           y = perc_sleepdep)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+Now that the outliers have been removed, it is clear that there is a negative association between sleep deprivation and income. Poorer people are more likely to be sleep-deprived; richer people are less likely. This relationship is significant.
+
+## Single regression: Race vs. sleep deprivation
+
+``` {r tracts6, echo = T}
+# Regression
+
+model = lm(perc_sleepdep ~ perc_white, bay_sleep_income_race)
+summary(model)
+
+# Scatterplot
+
+ggplot(data = bay_sleep_income_race,
+       aes(x = perc_white,
+           y = perc_sleepdep)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+There is a negative association between the percent of white people in a tract and the percent of sleep-deprived individuals. This relationship is also significant.
+
 ## Multiple regression
 
+``` {r tracts7, echo = T}
+# Correlation plot
 
+correlationplot = bay_sleep_income_race %>%
+                  select(perc_sleepdep,
+                         med_income,
+                         perc_white) %>%
+                  cor()
+corrplot(correlationplot,
+         method = "number",
+         type = "upper")
+```
+
+There is a relationship between median income and percentage of white people in each census tract, but the relationship is not strong enough that I am concerned about collinearity for this analysis.
+
+``` {r tracts8, echo = T}
+# Regression
+
+model = lm(perc_sleepdep ~ med_income + perc_white, bay_sleep_income_race)
+summary(model)
+```
+
+Echoing the single regression results above, both income and race have a significant impact on sleep deprivation rates. An income increase in $10,000 corresponds to a 0.4 percentage point decrease in sleep deprivation rates; a 1 percentage point increase in the percentage of white people corresponds to a 0.08 percentage point decrease in the percentage of sleep deprivation rates.
+
+Overall, the national trends reported in the literature are echoed in the Bay Area.
 
