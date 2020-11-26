@@ -155,7 +155,7 @@ leaflet() %>%
 
 ```
 
-Most PUMAs are majority-married people. The exceptions are San Francisco and Berkeley, but these are understandable exceptions — San Francisco is known for having a high population of young single tech workers, while Berkeley has a large population of young single college students.
+Most PUMAs are majority-married people. The exceptions are San Francisco and Berkeley, but these are understandable exceptions — San Francisco is known for having a high population of young single tech workers, while Berkeley has a large population of young single recent college graduates.
 
 ## Single regression: income vs. marriage rate
 
@@ -223,7 +223,28 @@ When regressing both together, it seems that both factors have a significant imp
 
 One possible explanation for this discrepancy is that unlike in most of the U.S., low-income people in the Bay Area are predominantly immigrants. Immigrants across the socioeconomic spectrum tend to be married at much higher rates than American-born citizens, according to the [American Enterprise Institute](https://www.aei.org/research-products/report/the-marriage-divide-how-and-why-working-class-families-are-more-fragile-today/) and the [Institute for Family Studies](https://ifstudies.org/blog/immigrants-marriage-family-class/). Since so many low-income people in the Bay Area are immigrants, it is possible that they are raising marriage rates among less-educated low-income people even higher than marriage rates among college-educated people.
 
-Another possible explanation is that there are enough young single college graduates in San Francisco that they weaken the relationship between college education and marriage rates.
+Another possible explanation is that there are enough young single college graduates in San Francisco that they weaken the relationship between college education and marriage rates. As shown in the map below, all areas where the marriage rate is under 50% are in San Francisco, Berkeley, Oakland, and Emoryville. The San Francisco areas overlap partly (though not entirely) with rapidly gentrifying areas as indicated in a map on [this blog](https://nickconwayblog.wordpress.com/2016/11/13/the-disappearance-of-san-franciscos-middle-class-neighborhoods-1990-2010/), while Berkeley is likely to be populated by a number of recent college graduates who are unmarried. Thus it is possible that an unusually large number of unmarried recent college graduates is also "flattening" the relationship between college education and marriage in the Bay Area.
+
+``` {r pums8}
+bay_marriage_map_test = bay_marriage %>%
+                        filter(perc_married < 50) %>%
+                        left_join(bay_pumas %>% select(PUMACE10),
+                                  by = c("PUMA" = "PUMACE10")) %>%
+                        st_as_sf()
+
+leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = bay_marriage_map_test,
+              color = "blue",
+              opacity = 1,
+              fillOpacity = 0.2,
+              weight = 4,
+              label = ~paste0(round(perc_married),
+                              "% married individuals"),
+              highlightOptions = highlightOptions(weight = 4,
+                                                  fillOpacity = 0.5))
+
+```
 
 # CBG/Tract/ZCTA-Level Regression: Sleep Deprivation
 
