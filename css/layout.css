@@ -260,7 +260,7 @@ ul#nav li.current a { color: #F06000; }
    font: 25px/30px 'opensans-bold', sans-serif;
 }
 
-#resume .header-col { padding-top: 9px; }
+#resume .header-col { padding-top: 9px;    border-right: 3px solid #E8E8E8;}
 #resume .main-col { padding-right: 10%; }
 
 .education, .work {
