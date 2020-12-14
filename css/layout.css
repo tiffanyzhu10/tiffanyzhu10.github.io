@@ -543,8 +543,8 @@ ul#nav li.current a { color: #F06000; }
    margin-bottom: 12px;
 }
 /*Tiffany's Addition*/
-.popup-modal .description-box p.caption {
-	 font: 10px/20px 'opensans-regular', sans-serif;
+.popup-modal .description-box .caption {
+	 font: 11px/21px 'opensans-regular', sans-serif;
    color: #A1A1A1;
    margin-bottom: 12px;
 }
