@@ -289,6 +289,10 @@ ul#nav li.current a { color: #F06000; }
 #resume ul li {
   list-style: disc inside;
 }
+#resume ul {
+  padding-top: none;
+  margin-top: none;
+}
 
 /*----------------------------------------------*/
 /*	Skill Bars
