@@ -285,6 +285,10 @@ ul#nav li.current a { color: #F06000; }
    font: 15px/24px 'opensans-regular', sans-serif;
    margin-top: 6px;
 }
+/* Tiffany's Addition */
+#resume ul li {
+  list-style: circle outside;
+}
 
 /*----------------------------------------------*/
 /*	Skill Bars
