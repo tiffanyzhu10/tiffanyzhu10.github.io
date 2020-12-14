@@ -286,7 +286,7 @@ ul#nav li.current a { color: #F06000; }
    margin-top: 6px;
 }
 /* Tiffany's Additions */
-#resume p .list-start {
+#resume .list-start p {
   margin-bottom: 0px;
 }
 #resume ul li {
