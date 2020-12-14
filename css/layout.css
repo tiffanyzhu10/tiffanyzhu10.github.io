@@ -285,11 +285,10 @@ ul#nav li.current a { color: #F06000; }
    font: 15px/24px 'opensans-regular', sans-serif;
    margin-top: 6px;
 }
-/* Tiffany's Addition */
-/*#resume ul {
-  padding-top: 0px;
-  margin-top: 0px;
-}*/
+/* Tiffany's Additions */
+#resume p .list-start {
+  margin-bottom: 0px;
+}
 #resume ul li {
   list-style: disc inside;
   margin-bottom: 6px;
