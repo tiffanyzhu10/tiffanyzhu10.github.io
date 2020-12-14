@@ -292,7 +292,7 @@ ul#nav li.current a { color: #F06000; }
 }
 #resume ul li {
   list-style: disc inside;
-  margin-bottom: 0px;
+  margin-bottom: 6px;
 }
 
 /*----------------------------------------------*/
