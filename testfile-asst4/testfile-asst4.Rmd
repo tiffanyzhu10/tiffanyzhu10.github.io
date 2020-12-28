@@ -91,7 +91,42 @@ logit_model = glm(english ~ AGEP + white + hispanic,
                   weights = PWGTP)
 summary(logit_model)
 exp(coef(logit_model))
+predict(logit_model, data.frame(AGEP = 40, white = 1, hispanic = 0), type = "response")
 ```
+
+# Section 4.2
+
+``` {r}
+
+sample = sample(c(TRUE, FALSE),
+                nrow(bay_pums_language),
+                replace = T,
+                prob = c(0.8, 0.2))
+train = bay_pums_language[sample, ]
+test = bay_pums_language[!sample, ]
+
+logit_model_training = glm(english ~ AGEP + white + hispanic,
+                           family = binomial(),
+                           data = train,
+                           weights = PWGTP)
+summary(logit_model_training)
+
+```
+
+``` {r}
+test_predicted = predict(logit_model_training,
+                         newdata = test,
+                         type = "response")
+
+summary_2x2 = test %>% mutate(english = ifelse(
+                                english == 1,
+                                "Yes (English)",
+                                "No (ESL)")) %>%
+              pull(english) %>%
+              table(test_predicted > 0.5)
+summary_2x2
+```
+
 
 
 
