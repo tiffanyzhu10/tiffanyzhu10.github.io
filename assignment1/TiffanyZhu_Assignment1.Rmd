@@ -131,7 +131,7 @@ pge_bay = pge_all %>%
 This chart shows monthly total kBTUs of residential and commercial electricity and gas consumption in the Bay Area from Q1 2017 to Q2 2020.
 
 ```{r aggregate_graph, echo=TRUE, message=FALSE, warning=FALSE}
-plot_ly() %>% add_trace(data = pge_bay %>%
+pge_bay_plotly = plot_ly() %>% add_trace(data = pge_bay %>%
                         filter(CUSTOMERCLASS == "Elec- Commercial"),
                         x = ~DATE %>% factor(),
                         y = ~TOTALKBTU,
@@ -162,6 +162,8 @@ plot_ly() %>% add_trace(data = pge_bay %>%
                      barmode = "stack",
                      legend = list(title = list(text = "Energy User"))) %>%
               config(displayModeBar = F)
+saveRDS(pge_bay_plotly, file = "../testfile-asst9/pge_bay_plotly.rds")
+pge_bay_plotly
 ```
 Visual inspection suggests that in 2020, there was a drop in commercial electricity usage in April, but commercial electricity use rebounded to slightly below pre-COVID levels by May. There was also a sharp decline in commercial gas use from March 2020 in April, and this decline continued into June 2020. The decline in commercial gas usage is expected, since many Bay Area workers transitioned to working from home, and offices had less need for using their heating and A/C systems. It is somewhat surprising that electricity use rebounded in May 2020, but my guess is that manufacturing facilities comprise the bulk of commercial electricity usage, and unlike offices, most manufacturing facilities did not close down due to COVID since they were deemed "essential." Anecdotally, my mother works at a medical devices company, and while all office workers have been working from home since February, the factories only closed down briefly and reopened for in-person work as soon as social distancing protocols were established.
 
