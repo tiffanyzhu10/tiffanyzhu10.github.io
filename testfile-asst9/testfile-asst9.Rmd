@@ -1,0 +1,67 @@
+---
+title: "Test File for Assignment 9"
+author: "Tiffany Zhu"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output: flexdashboard::flex_dashboard
+---
+
+```{r setup, global, include=FALSE}
+
+library(flexdashboard)
+library(tidyverse)
+library(leaflet)
+library(plotly)
+
+pge_bay_plotly = readRDS("pge_bay_plotly.rds")
+
+bay_marriage_map = readRDS("bay_marriage_map.rds")
+
+marriage_pal = colorNumeric(palette = "Oranges",
+                            domain = bay_marriage_map$perc_married)
+
+```
+
+Column
+-------------------------------------
+
+This is a test.
+
+### Energy consumption in the Bay Area
+
+``` {r}
+
+pge_bay_plotly
+
+```
+
+Column
+-------------------------------------
+
+This is another test.
+
+### Percent married in Bay Area
+
+``` {r}
+
+bay_marriage_map %>% leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = bay_marriage_map,
+              fillColor = ~marriage_pal(perc_married),
+              color = "white",
+              opacity = 0.5,
+              fillOpacity = 0.5,
+              weight = 1,
+              label = ~paste0(round(perc_married),
+                              "% married individuals"),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  opacity = 1)) %>%
+  addLegend(data = bay_marriage_map,
+            pal = marriage_pal,
+            values = ~perc_married,
+            title = "Percentage of population<br>that is or has been married")
+
+```
+
+
+
+
