@@ -132,6 +132,7 @@ bay_marriage_map = bay_marriage %>%
                    left_join(bay_pumas %>% select(PUMACE10),
                              by = c("PUMA" = "PUMACE10")) %>%
                    st_as_sf()
+saveRDS(bay_marriage_map, file = "../testfile-asst9/bay_marriage_map.rds")
 
 marriage_pal = colorNumeric(palette = "Oranges",
                             domain = bay_marriage_map$perc_married)
