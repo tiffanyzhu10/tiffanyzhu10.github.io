@@ -1,0 +1,177 @@
+---
+title: "Milpitas SVI Dashboard"
+output: flexdashboard::flex_dashboard
+---
+
+```{r setup, global, include=FALSE}
+
+library(flexdashboard)
+library(tidyverse)
+library(leaflet)
+library(plotly)
+
+milpitas_svi_map = readRDS("milpitas_svi_map.rds")
+
+svi_pal = colorNumeric(palette = "Reds",
+                       domain = milpitas_svi_map$RPL_THEMES)
+
+svi_pal_se = colorNumeric(palette = "Greens",
+                          domain = milpitas_svi_map$RPL_THEME1)
+
+svi_pal_hcd = colorNumeric(palette = "Oranges",
+                           domain = milpitas_svi_map$RPL_THEME2)
+
+svi_pal_msl = colorNumeric(palette = "Purples",
+                           domain = milpitas_svi_map$RPL_THEME3)
+
+svi_pal_htt = colorNumeric(palette = "Blues",
+                           domain = milpitas_svi_map$RPL_THEME4)
+
+```
+
+Overall SVI
+=====================================
+
+This graph shows the Social Vulnerability Index in Milpitas.
+
+### SVI in Milpitas
+
+```{r}
+
+milpitas_svi_map %>% leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = milpitas_svi_map,
+              fillColor = ~svi_pal(RPL_THEMES),
+              color = "white",
+              opacity = 0.5,
+              fillOpacity = 0.8,
+              weight = 1,
+              label = ~paste0(RPL_THEMES, " in tract ", TRACT),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  opacity = 1)) %>%
+  addLegend(data = milpitas_svi_map,
+            pal = svi_pal,
+            values = ~RPL_THEMES,
+            title = "Social Vulnerability Index, Milpitas")
+
+```
+
+Socioeconomic Status
+=====================================
+
+This is a test page.
+
+### SVI by SES
+
+```{r}
+
+milpitas_svi_map %>% leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = milpitas_svi_map,
+              fillColor = ~svi_pal_se(RPL_THEME1),
+              color = "white",
+              opacity = 0.5,
+              fillOpacity = 0.8,
+              weight = 1,
+              label = ~paste0(RPL_THEME1, " in tract ", TRACT),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  opacity = 1)) %>%
+  addLegend(data = milpitas_svi_map,
+            pal = svi_pal_se,
+            values = ~RPL_THEME1,
+            title = "Social Vulnerability Index<br>
+                     (Socioeconomic Status),<br>
+                     Milpitas")
+
+```
+
+Household Composition/Disability
+=====================================
+
+This is a test page.
+
+### SVI by HCD
+
+```{r}
+
+milpitas_svi_map %>% leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = milpitas_svi_map,
+              fillColor = ~svi_pal_hcd(RPL_THEME2),
+              color = "white",
+              opacity = 0.5,
+              fillOpacity = 0.8,
+              weight = 1,
+              label = ~paste0(RPL_THEME2, " in tract ", TRACT),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  opacity = 1)) %>%
+  addLegend(data = milpitas_svi_map,
+            pal = svi_pal_hcd,
+            values = ~RPL_THEME2,
+            title = "Social Vulnerability Index<br>
+                     (Household Composition<br>
+                     and Disability), Milpitas")
+
+```
+
+Minority Status/Lang
+=====================================
+
+This is a test page.
+
+### SVI by MSL
+
+```{r}
+
+milpitas_svi_map %>% leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = milpitas_svi_map,
+              fillColor = ~svi_pal_msl(RPL_THEME3),
+              color = "white",
+              opacity = 0.5,
+              fillOpacity = 0.8,
+              weight = 1,
+              label = ~paste0(RPL_THEME3, " in tract ", TRACT),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  opacity = 1)) %>%
+  addLegend(data = milpitas_svi_map,
+            pal = svi_pal_msl,
+            values = ~RPL_THEME3,
+            title = "Social Vulnerability Index<br>
+                     (Minority Status and<br>
+                     Language), Milpitas")
+
+```
+
+Housing Type/Transportation
+=====================================
+
+This is a test page.
+
+### SVI by HTT
+
+```{r}
+
+milpitas_svi_map %>% leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = milpitas_svi_map,
+              fillColor = ~svi_pal_htt(RPL_THEME4),
+              color = "white",
+              opacity = 0.5,
+              fillOpacity = 0.8,
+              weight = 1,
+              label = ~paste0(RPL_THEME4, " in tract ", TRACT),
+              highlightOptions = highlightOptions(weight = 2,
+                                                  opacity = 1)) %>%
+  addLegend(data = milpitas_svi_map,
+            pal = svi_pal_htt,
+            values = ~RPL_THEME4,
+            title = "Social Vulnerability Index<br>
+                     (Housing Type and<br>
+                     Transportation), Milpitas")
+
+```
+
+
+
+
