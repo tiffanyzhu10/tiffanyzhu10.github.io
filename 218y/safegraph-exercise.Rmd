@@ -33,6 +33,8 @@ hps_20201130 = readRDS("/Volumes/GoogleDrive/Shared drives/SFBI-Restricted/Safeg
 
 unique_core_sgpid = readRDS("/Volumes/GoogleDrive/Shared drives/SFBI-Restricted/Safegraph/218y/data/unique_core_sgpid.rds")
 
+core_geometry_scc_all = readRDS("/Volumes/GoogleDrive/Shared drives/SFBI-Restricted/Safegraph/218y/data/core_geometry_scc_all.rds")
+
 ```
 
 ```{r}
