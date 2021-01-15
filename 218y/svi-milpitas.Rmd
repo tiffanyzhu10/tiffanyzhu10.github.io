@@ -1,5 +1,6 @@
 ---
 title: "Milpitas SVI Dashboard"
+author: "Stanford Future Bay Initiative"
 output: flexdashboard::flex_dashboard
 ---
 
@@ -32,9 +33,15 @@ svi_pal_htt = colorNumeric(palette = "Blues",
 Overall SVI
 =====================================
 
-This graph shows the Social Vulnerability Index in Milpitas.
+The [Social Vulnerability Index](https://www.atsdr.cdc.gov/placeandhealth/svi/index.html) is a measure developed by the CDC to describe communities' resilience to natural and man-made disasters. It was designed to help government officials plan for and respond to events such as fires, tornadoes, floods, or (most relevant to today) disease outbreaks.
 
-### SVI in Milpitas
+The CDC considers four factors to contribute to social vulnerability. The first is socioeconomic status of the community. The second is the composition of households in the community (households with elderly people or children are more vulnerable than households comprised of working adults), along with how many households have members with a disability. The third is ethnic/racial minority status and English fluency. The fourth is housing type (multi-unit residency, mobile home residency, crowding) and access to transportation.
+
+The SVI is a percentile ranking of how vulnerable a community is to disaster. A higher number indicates a more vulnerable community; a lower number indicates a more resilient community.
+
+The maps in this dashboard use data from the CDC's 2018 wave of data collection. The below map shows a composite measure of social vulnerability drawing from all four factors. On the other four pages, you will find measures of social vulnerability based individually on the four factors.
+
+### Overall SVI
 
 ```{r}
 
@@ -59,9 +66,9 @@ milpitas_svi_map %>% leaflet() %>%
 Socioeconomic Status
 =====================================
 
-This is a test page.
+This is a measure of social vulnerability that looks solely at socioeconomic status.
 
-### SVI by SES
+### SVI by Socioeconomic Status
 
 ```{r}
 
@@ -88,9 +95,9 @@ milpitas_svi_map %>% leaflet() %>%
 Household Composition/Disability
 =====================================
 
-This is a test page.
+This is a measure of social vulnerability that looks solely at household composition and disability
 
-### SVI by HCD
+### SVI by Household Composition and Disability
 
 ```{r}
 
@@ -117,9 +124,9 @@ milpitas_svi_map %>% leaflet() %>%
 Minority Status/Lang
 =====================================
 
-This is a test page.
+This is a measure of social vulnerability that looks solely at minority status and language.
 
-### SVI by MSL
+### SVI by Minority Status and Language
 
 ```{r}
 
@@ -146,9 +153,9 @@ milpitas_svi_map %>% leaflet() %>%
 Housing Type/Transportation
 =====================================
 
-This is a test page.
+This is a measure of social vulnerability that looks solely at housing type and transportation.
 
-### SVI by HTT
+### SVI by Minority Status and Language
 
 ```{r}
 
