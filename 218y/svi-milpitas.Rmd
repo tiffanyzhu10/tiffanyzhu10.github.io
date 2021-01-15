@@ -95,7 +95,7 @@ milpitas_svi_map %>% leaflet() %>%
 Household Composition/Disability
 =====================================
 
-This is a measure of social vulnerability that looks solely at household composition and disability
+This is a measure of social vulnerability that looks solely at household composition and disability.
 
 ### SVI by Household Composition and Disability
 
